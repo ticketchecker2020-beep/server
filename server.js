@@ -979,13 +979,13 @@ app.get('/subscribe', (req, res) => {
     ? { name: 'SMS שנתי', price: 199, period: 'שנה' }
     : { name: 'SMS חודשי', price: 29, period: 'חודש' };
   
-  res.send(\`
+  res.send(`
 <!DOCTYPE html>
 <html dir="rtl" lang="he">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>הרשמה - \${planInfo.name}</title>
+  <title>הרשמה - ${planInfo.name}</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { 
@@ -1067,12 +1067,12 @@ app.get('/subscribe', (req, res) => {
   <div class="container">
     <h1>🎟️ הרשמה</h1>
     <div class="plan-badge">
-      <div class="price">\${planInfo.price}₪</div>
-      <div class="period">\${planInfo.name} - ל\${planInfo.period}</div>
+      <div class="price">${planInfo.price}₪</div>
+      <div class="period">${planInfo.name} - ל${planInfo.period}</div>
     </div>
     
     <form id="subscribeForm">
-      <input type="hidden" name="plan" value="\${plan}">
+      <input type="hidden" name="plan" value="${plan}">
       
       <div class="form-group">
         <label>📧 אימייל</label>
@@ -1104,7 +1104,7 @@ app.get('/subscribe', (req, res) => {
   
   <script>
     let appliedCoupon = null;
-    let finalPrice = \${planInfo.price};
+    let finalPrice = ${planInfo.price};
     
     async function checkCoupon() {
       const code = document.getElementById('couponInput').value.trim();
@@ -1118,7 +1118,7 @@ app.get('/subscribe', (req, res) => {
       }
       
       try {
-        const res = await fetch('/coupon/validate?code=' + code + '&plan=\${plan}');
+        const res = await fetch('/coupon/validate?code=' + code + '&plan=${plan}');
         const data = await res.json();
         
         if (data.valid) {
@@ -1184,7 +1184,7 @@ app.get('/subscribe', (req, res) => {
   </script>
 </body>
 </html>
-  \`);
+  `);
 });
 
 // Pending orders storage (in production, use database)
@@ -1427,7 +1427,7 @@ app.get('/payment/success', (req, res) => {
   const orderId = req.query.order;
   const order = pendingOrders[orderId];
   
-  res.send(\`
+  res.send(`
 <!DOCTYPE html>
 <html dir="rtl" lang="he">
 <head>
@@ -1492,14 +1492,14 @@ app.get('/payment/success', (req, res) => {
     <h1>התשלום הצליח!</h1>
     <p>תודה רבה! מפתח הרשיון נשלח אליך באימייל ו-SMS.</p>
     
-    \${order && order.licenseKey ? \`
+    ${order && order.licenseKey ? `
     <div class="license-box">
       <label>מפתח הרשיון שלך:</label>
-      <div class="license-key">\${order.licenseKey}</div>
+      <div class="license-key">${order.licenseKey}</div>
     </div>
-    \` : \`
+    ` : `
     <p>⏳ מפתח הרשיון יגיע בדקות הקרובות...</p>
-    \`}
+    `}
     
     <p>💡 העתק את המפתח והכנס אותו בתוסף בכרום</p>
     
@@ -1507,7 +1507,7 @@ app.get('/payment/success', (req, res) => {
   </div>
 </body>
 </html>
-  \`);
+  `);
 });
 
 // Get pricing info (public)
