@@ -333,38 +333,23 @@ function setupEmailTransporter() {
   }
 }
 
-// SMS Provider setup - supports 019SMS (Israeli, cheap) or Twilio (fallback)
-let smsProvider = null;
+// Twilio SMS setup
+let twilioClient = null;
 
-function setupSMS() {
-  // Prefer 019SMS (Israeli provider - much cheaper!)
-  if (process.env.SMS019_USERNAME && process.env.SMS019_PASSWORD) {
-    smsProvider = {
-      type: '019sms',
-      username: process.env.SMS019_USERNAME,
-      password: process.env.SMS019_PASSWORD,
-      sender: process.env.SMS019_SENDER || 'Beitar'
-    };
-    console.log('📱 019SMS configured (Israeli provider - 0.05₪/SMS)');
-  }
-  // Fallback to Twilio
-  else if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
+function setupTwilio() {
+  if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
     try {
       const twilio = require('twilio');
-      smsProvider = {
-        type: 'twilio',
-        client: twilio(
-          process.env.TWILIO_ACCOUNT_SID,
-          process.env.TWILIO_AUTH_TOKEN
-        ),
-        phone: process.env.TWILIO_PHONE_NUMBER
-      };
-      console.log('📱 Twilio SMS configured (expensive - $0.26/SMS)');
+      twilioClient = twilio(
+        process.env.TWILIO_ACCOUNT_SID,
+        process.env.TWILIO_AUTH_TOKEN
+      );
+      console.log('📱 Twilio SMS configured');
     } catch (error) {
       console.log('⚠️ Twilio setup failed:', error.message);
     }
   } else {
-    console.log('⚠️ SMS not configured - check .env file');
+    console.log('⚠️ Twilio not configured - check .env file');
   }
 }
 
@@ -392,10 +377,10 @@ async function sendEmail(to, subject, htmlContent) {
   }
 }
 
-// Send SMS - supports 019SMS (cheap) or Twilio (expensive fallback)
+// Send SMS
 async function sendSMS(to, message) {
-  if (!smsProvider) {
-    console.log('SMS not configured, skipping...');
+  if (!twilioClient) {
+    console.log('Twilio not configured, skipping SMS...');
     return false;
   }
 
@@ -407,47 +392,15 @@ async function sendSMS(to, message) {
     } else if (!phone.startsWith('+')) {
       phone = '+972' + phone;
     }
-    
-    // 019SMS - Israeli provider (CHEAP!)
-    if (smsProvider.type === '019sms') {
-      const phoneLocal = phone.replace('+972', '0'); // 019SMS wants local format
-      const url = `https://www.019sms.co.il/api/v2/sms/send`;
-      
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username: smsProvider.username,
-          password: smsProvider.password,
-          from: smsProvider.sender,
-          to: phoneLocal,
-          message: message
-        })
-      });
-      
-      const result = await response.json();
-      if (result.success || result.status === 'OK' || response.ok) {
-        console.log(`✅ SMS sent via 019SMS to ${phoneLocal} (~0.05₪)`);
-        trackUsage('sms', true, { to: phone.substring(0, 6) + '***', provider: '019sms' });
-        return true;
-      } else {
-        throw new Error(result.message || result.error || 'Unknown error');
-      }
-    }
-    
-    // Twilio - fallback (EXPENSIVE)
-    else if (smsProvider.type === 'twilio') {
-      await smsProvider.client.messages.create({
-        body: message,
-        from: smsProvider.phone,
-        to: phone
-      });
-      console.log(`✅ SMS sent via Twilio to ${phone} (~$0.26)`);
-      trackUsage('sms', true, { to: phone.substring(0, 6) + '***', provider: 'twilio' });
-      return true;
-    }
-    
-    return false;
+
+    await twilioClient.messages.create({
+      body: message,
+      from: process.env.TWILIO_PHONE_NUMBER,
+      to: phone
+    });
+    console.log(`✅ SMS sent to ${phone}`);
+    trackUsage('sms', true, { to: phone.substring(0, 6) + '***' });
+    return true;
   } catch (error) {
     console.error(`❌ SMS failed to ${to}:`, error.message);
     trackUsage('sms', false, { error: error.message });
@@ -462,8 +415,7 @@ app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
     email: !!emailTransporter,
-    sms: !!smsProvider,
-    smsProvider: smsProvider?.type || 'none',
+    sms: !!twilioClient,
     timestamp: new Date().toISOString()
   });
 });
@@ -724,8 +676,7 @@ app.get('/api/admin/stats', (req, res) => {
     usage: data.usage,
     config: {
       emailConfigured: !!emailTransporter,
-      smsConfigured: !!smsProvider,
-      smsProvider: smsProvider?.type || 'none'
+      smsConfigured: !!twilioClient
     }
   });
 });
@@ -817,9 +768,13 @@ app.post('/api/register', (req, res) => {
   saveData();
   
   // Send welcome SMS only for VIP (100% discount coupon) - don't waste money on free users
-  if (smsProvider && isVipCoupon) {
+  if (twilioClient && isVipCoupon) {
     const welcomeMsg = `🎟️ VIP! מפתח: ${licenseKey}\n🖤💛 SMS ללא הגבלה!`;
-    sendSMS(normalizedPhone, welcomeMsg).catch(err => console.log('Welcome SMS failed:', err.message));
+    twilioClient.messages.create({
+      body: welcomeMsg,
+      from: process.env.TWILIO_PHONE_NUMBER,
+      to: normalizedPhone
+    }).catch(err => console.log('Welcome SMS failed:', err.message));
   }
   
   // Send welcome email if provided
@@ -1221,7 +1176,7 @@ setTimeout(checkLicenseExpiry, 5000);
 
 // Initialize services and start server
 setupEmailTransporter();
-setupSMS();
+setupTwilio();
 
 const licenseCount = Object.keys(data.licenses).length;
 const activeLicenses = Object.values(data.licenses).filter(l => l.active).length;
