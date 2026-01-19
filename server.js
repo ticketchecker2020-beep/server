@@ -247,6 +247,13 @@ function authenticateApiKey(req, res, next) {
     return next();
   }
   
+  // Free email access - allow email without license
+  if (licenseKey === 'free-email') {
+    req.userKey = 'free-email';
+    req.isFreeEmail = true;
+    return next();
+  }
+  
   // Check license key
   if (licenseKey) {
     const licenseCheck = isLicenseValid(licenseKey);
