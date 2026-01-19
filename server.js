@@ -232,7 +232,7 @@ setInterval(checkLicenseExpiry, 6 * 60 * 60 * 1000);
 // API Key authentication middleware
 function authenticateApiKey(req, res, next) {
   // Skip auth for public endpoints and admin (admin has its own password check)
-  const publicPaths = ['/health', '/pricing', '/register', '/coupon/validate', '/license/validate', '/admin', '/create-pending-order'];
+  const publicPaths = ['/health', '/pricing', '/register', '/coupon/validate', '/license/validate', '/admin', '/create-pending-order', '/webhook'];
   if (publicPaths.some(p => req.path === p || req.path.startsWith(p))) {
     return next();
   }
@@ -1244,13 +1244,13 @@ app.post('/api/create-pending-order', async (req, res) => {
   console.log(`📝 Created pending order ${orderId} for ${email}, plan: ${plan}, price: ${finalPrice}₪`);
   
   // Build PayBox URL with order ID in the reference
-  // PayBox supports passing custom data that will be returned in webhook
-  const payboxUrl = process.env.PAYBOX_URL || 'https://links.payboxapp.com/IdiXnIQ13Zb';
+  const payboxUrl = 'https://links.payboxapp.com/IdiXnIQ13Zb';
   
   res.json({
     success: true,
     orderId,
-    paymentUrl: payboxUrl + '?order=' + orderId
+    finalPrice,
+    paymentUrl: payboxUrl
   });
 });
 
