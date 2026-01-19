@@ -1118,7 +1118,7 @@ app.get('/subscribe', (req, res) => {
       }
       
       try {
-        const res = await fetch('/coupon/validate?code=' + code + '&plan=${plan}');
+        const res = await fetch('/api/coupon/validate?code=' + code + '&plan=${plan}');
         const data = await res.json();
         
         if (data.valid) {
