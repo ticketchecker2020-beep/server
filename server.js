@@ -610,7 +610,6 @@ app.post('/api/notify', async (req, res) => {
       smsLeft: Math.max(0, smsLimit - smsUsed),
       canSendSms
     };
-    }
   }
 
   res.json({
