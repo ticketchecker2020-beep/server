@@ -1314,7 +1314,7 @@ app.post('/api/create-pending-order', async (req, res) => {
     `;
     
     await sendEmail(email, '🎟️ מפתח הרשיון שלך - בית"ר ירושלים (חינם!)', emailHtml);
-    await sendSms(formattedPhone, `בית"ר: קיבלת מנוי חינם! מפתח: ${licenseKey}`);
+    await sendSMS(formattedPhone, `בית"ר: קיבלת מנוי חינם! מפתח: ${licenseKey}`);
     
     console.log(`✅ FREE License ${licenseKey} created for ${email} with coupon ${coupon}`);
     
@@ -1438,7 +1438,7 @@ app.post('/webhook/paybox', async (req, res) => {
     await sendEmail(pendingOrder.email, '🎟️ מפתח הרשיון שלך - בית"ר ירושלים', emailHtml);
     
     // Also send SMS with license key
-    await sendSms(pendingOrder.phone, `בית"ר: מפתח הרשיון שלך: ${licenseKey}`);
+    await sendSMS(pendingOrder.phone, `בית"ר: מפתח הרשיון שלך: ${licenseKey}`);
     
     console.log(`✅ License ${licenseKey} created for ${pendingOrder.email} via PayBox webhook`);
     
