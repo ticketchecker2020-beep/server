@@ -232,7 +232,7 @@ setInterval(checkLicenseExpiry, 6 * 60 * 60 * 1000);
 // API Key authentication middleware
 function authenticateApiKey(req, res, next) {
   // Skip auth for public endpoints and admin (admin has its own password check)
-  const publicPaths = ['/health', '/pricing', '/register', '/coupon/validate', '/license/validate', '/admin'];
+  const publicPaths = ['/health', '/pricing', '/register', '/coupon/validate', '/license/validate', '/admin', '/create-pending-order'];
   if (publicPaths.some(p => req.path === p || req.path.startsWith(p))) {
     return next();
   }
@@ -1593,7 +1593,9 @@ app.get('/api/coupon/validate', (req, res) => {
       type: coupon.type,
       originalPrice: originalPrice,
       discountedPrice: discountedPrice,
-      savings: originalPrice - discountedPrice
+      finalPrice: discountedPrice,
+      savings: originalPrice - discountedPrice,
+      message: coupon.description || `הנחה של ${coupon.discount}${coupon.type === 'percent' ? '%' : '₪'}`
     });
   } else {
     res.json({
