@@ -1166,8 +1166,13 @@ app.get('/subscribe', (req, res) => {
         const data = await res.json();
         
         if (data.success) {
-          // Redirect to PayBox
-          window.location.href = data.paymentUrl;
+          if (data.free) {
+            // Free license - show success page
+            window.location.href = '/free-success?license=' + data.licenseKey;
+          } else {
+            // Redirect to PayBox for payment
+            window.location.href = data.paymentUrl;
+          }
         } else {
           error.textContent = data.error || 'שגיאה ביצירת הזמנה';
           error.style.display = 'block';
@@ -1243,7 +1248,85 @@ app.post('/api/create-pending-order', async (req, res) => {
   
   console.log(`📝 Created pending order ${orderId} for ${email}, plan: ${plan}, price: ${finalPrice}₪`);
   
-  // Build PayBox URL with order ID in the reference
+  // If FREE (100% discount) - create license immediately without payment!
+  if (finalPrice === 0) {
+    const licenseKey = generateLicenseKey();
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + planInfo.days);
+    
+    data.licenses[licenseKey] = {
+      plan,
+      userEmail: email,
+      userPhone: formattedPhone,
+      active: true,
+      createdAt: new Date().toISOString(),
+      expiresAt: expiresAt.toISOString(),
+      smsRemaining: planInfo.smsLimit,
+      smsLimit: planInfo.smsLimit,
+      couponUsed: coupon,
+      freeFromCoupon: true
+    };
+    
+    saveData();
+    
+    // Mark coupon as used if it's one-time
+    if (coupon && COUPONS[coupon.toUpperCase()]?.oneTimeUse) {
+      COUPONS[coupon.toUpperCase()].active = false;
+    }
+    
+    // Send license by email
+    const emailHtml = `
+      <!DOCTYPE html>
+      <html dir="rtl" lang="he">
+      <head><meta charset="UTF-8"></head>
+      <body style="font-family: Arial; background: #111; color: #fff; padding: 20px;">
+        <div style="max-width: 500px; margin: 0 auto; background: #1a1a1a; border-radius: 15px; padding: 30px; border: 2px solid #ffd700;">
+          <h1 style="color: #ffd700; text-align: center;">🎟️ ברוך הבא!</h1>
+          <p style="text-align: center; color: #4ade80; font-size: 1.2em;">🎁 קיבלת מנוי חינם!</p>
+          
+          <div style="background: #222; padding: 20px; border-radius: 10px; margin: 20px 0;">
+            <p style="margin: 0; color: #888;">מפתח הרשיון שלך:</p>
+            <p style="font-size: 1.5em; color: #ffd700; font-family: monospace; margin: 10px 0; word-break: break-all;">
+              ${licenseKey}
+            </p>
+          </div>
+          
+          <div style="background: #222; padding: 15px; border-radius: 10px; margin: 10px 0;">
+            <p style="margin: 5px 0;">📅 תוקף: עד ${expiresAt.toLocaleDateString('he-IL')}</p>
+            <p style="margin: 5px 0;">📱 SMS נותרו: ${planInfo.smsLimit}</p>
+            <p style="margin: 5px 0;">📧 אימייל: ללא הגבלה</p>
+          </div>
+          
+          <h3 style="color: #ffd700; margin-top: 30px;">איך להשתמש:</h3>
+          <ol style="color: #ccc; line-height: 2;">
+            <li>התקן את התוסף לכרום</li>
+            <li>פתח את התוסף ולחץ על "SMS בתשלום"</li>
+            <li>הכנס את מפתח הרשיון</li>
+            <li>זהו! תקבל SMS כשיש כרטיסים</li>
+          </ol>
+          
+          <p style="text-align: center; margin-top: 30px; color: #888;">
+            💛🖤 בהצלחה במשחקים!
+          </p>
+        </div>
+      </body>
+      </html>
+    `;
+    
+    await sendEmail(email, '🎟️ מפתח הרשיון שלך - בית"ר ירושלים (חינם!)', emailHtml);
+    await sendSms(formattedPhone, `בית"ר: קיבלת מנוי חינם! מפתח: ${licenseKey}`);
+    
+    console.log(`✅ FREE License ${licenseKey} created for ${email} with coupon ${coupon}`);
+    
+    return res.json({
+      success: true,
+      free: true,
+      licenseKey,
+      message: '🎉 מנוי חינם נוצר בהצלחה! בדוק את האימייל שלך.'
+    });
+  }
+  
+  // Build PayBox URL for paid orders
   const payboxUrl = 'https://links.payboxapp.com/IdiXnIQ13Zb';
   
   res.json({
@@ -1420,6 +1503,119 @@ app.get('/webhook/paybox', (req, res) => {
   // Process same as POST
   req.body = req.query;
   return app._router.handle(req, res, () => {});
+});
+
+// Free license success page
+app.get('/free-success', (req, res) => {
+  const licenseKey = req.query.license || '';
+  
+  res.send(`
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🎉 מנוי חינם נוצר!</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { 
+      font-family: 'Segoe UI', Arial, sans-serif; 
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      min-height: 100vh; 
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .container { 
+      max-width: 500px;
+      text-align: center;
+      background: rgba(255,255,255,0.05);
+      border-radius: 20px;
+      padding: 50px;
+      border: 2px solid #4ade80;
+    }
+    .success-icon { font-size: 5em; margin-bottom: 20px; }
+    h1 { color: #4ade80; margin-bottom: 15px; }
+    p { color: #ccc; margin-bottom: 20px; line-height: 1.6; }
+    .license-box {
+      background: rgba(255,215,0,0.1);
+      border: 2px solid #ffd700;
+      border-radius: 15px;
+      padding: 20px;
+      margin: 25px 0;
+    }
+    .license-box label { color: #888; display: block; margin-bottom: 10px; }
+    .license-key {
+      font-size: 1.2em;
+      font-family: monospace;
+      color: #ffd700;
+      background: rgba(0,0,0,0.3);
+      padding: 15px;
+      border-radius: 8px;
+      word-break: break-all;
+      cursor: pointer;
+    }
+    .copy-btn {
+      margin-top: 10px;
+      padding: 10px 20px;
+      background: #ffd700;
+      color: #000;
+      border: none;
+      border-radius: 20px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    .btn {
+      display: inline-block;
+      padding: 15px 40px;
+      background: linear-gradient(135deg, #ffd700, #ffaa00);
+      color: #000;
+      text-decoration: none;
+      border-radius: 30px;
+      font-weight: bold;
+      margin-top: 20px;
+    }
+    .free-badge {
+      background: #4ade80;
+      color: #000;
+      padding: 5px 15px;
+      border-radius: 20px;
+      font-weight: bold;
+      display: inline-block;
+      margin-bottom: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="success-icon">🎉</div>
+    <div class="free-badge">חינם!</div>
+    <h1>מנוי נוצר בהצלחה!</h1>
+    <p>קיבלת מנוי חינם! מפתח הרשיון נשלח גם באימייל וגם ב-SMS.</p>
+    
+    <div class="license-box">
+      <label>מפתח הרשיון שלך:</label>
+      <div class="license-key" id="licenseKey" onclick="copyLicense()">${licenseKey}</div>
+      <button class="copy-btn" onclick="copyLicense()">📋 העתק</button>
+    </div>
+    
+    <p>💡 העתק את המפתח והכנס אותו בתוסף בכרום</p>
+    
+    <a href="/pricing#download" class="btn">📥 הורד את התוסף</a>
+  </div>
+  
+  <script>
+    function copyLicense() {
+      const license = document.getElementById('licenseKey').textContent;
+      navigator.clipboard.writeText(license);
+      alert('מפתח הרשיון הועתק!');
+    }
+  </script>
+</body>
+</html>
+  `);
 });
 
 // Payment success page
