@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>הרשמה - Beitar Ticket Monitor</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    body {
+      font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+      background: #000;
+      color: #fff;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    
+    .container {
+      max-width: 450px;
+      width: 100%;
+    }
+    
+    .card {
+      background: #111;
+      border-radius: 16px;
+      padding: 32px;
+      border: 2px solid #ffd700;
+      box-shadow: 0 4px 30px rgba(255, 215, 0, 0.2);
+    }
+    
+    .logo {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+    
+    .logo img {
+      width: 80px;
+      height: 80px;
+    }
+    
+    h1 {
+      color: #ffd700;
+      text-align: center;
+      font-size: 24px;
+      margin-bottom: 8px;
+    }
+    
+    .subtitle {
+      text-align: center;
+      color: #888;
+      font-size: 14px;
+      margin-bottom: 24px;
+    }
+    
+    .trial-badge {
+      background: linear-gradient(135deg, #ffd700, #ff9800);
+      color: #000;
+      text-align: center;
+      padding: 12px;
+      border-radius: 8px;
+      font-weight: bold;
+      margin-bottom: 24px;
+    }
+    
+    .form-group {
+      margin-bottom: 16px;
+    }
+    
+    label {
+      display: block;
+      color: #888;
+      font-size: 13px;
+      margin-bottom: 6px;
+    }
+    
+    .required::after {
+      content: ' *';
+      color: #f44336;
+    }
+    
+    input {
+      width: 100%;
+      padding: 14px;
+      background: #1a1a1a;
+      border: 2px solid #333;
+      border-radius: 8px;
+      color: #fff;
+      font-size: 16px;
+      transition: border-color 0.2s;
+    }
+    
+    input:focus {
+      outline: none;
+      border-color: #ffd700;
+    }
+    
+    input[type="tel"] {
+      direction: ltr;
+      text-align: right;
+    }
+    
+    .btn {
+      width: 100%;
+      padding: 16px;
+      background: #ffd700;
+      color: #000;
+      border: none;
+      border-radius: 8px;
+      font-size: 18px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-top: 8px;
+    }
+    
+    .btn:hover {
+      background: #ffdd33;
+      transform: translateY(-2px);
+    }
+    
+    .btn:disabled {
+      background: #666;
+      cursor: not-allowed;
+      transform: none;
+    }
+    
+    .features {
+      background: #1a1a1a;
+      border-radius: 8px;
+      padding: 16px;
+      margin-top: 24px;
+    }
+    
+    .features h3 {
+      color: #ffd700;
+      font-size: 14px;
+      margin-bottom: 12px;
+    }
+    
+    .features ul {
+      list-style: none;
+    }
+    
+    .features li {
+      padding: 8px 0;
+      color: #ccc;
+      font-size: 14px;
+      border-bottom: 1px solid #333;
+    }
+    
+    .features li:last-child {
+      border-bottom: none;
+    }
+    
+    .features li::before {
+      content: '✓ ';
+      color: #4CAF50;
+    }
+    
+    .pricing-note {
+      text-align: center;
+      color: #888;
+      font-size: 12px;
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid #333;
+    }
+    
+    .pricing-note strong {
+      color: #ffd700;
+    }
+    
+    .error {
+      background: #f44336;
+      color: #fff;
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+      text-align: center;
+    }
+    
+    .success {
+      background: #4CAF50;
+      color: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      text-align: center;
+    }
+    
+    .success h2 {
+      margin-bottom: 12px;
+    }
+    
+    .license-key {
+      background: #1a1a1a;
+      padding: 16px;
+      border-radius: 8px;
+      font-family: monospace;
+      font-size: 18px;
+      color: #ffd700;
+      letter-spacing: 2px;
+      margin: 16px 0;
+      word-break: break-all;
+      cursor: pointer;
+    }
+    
+    .license-key:hover {
+      background: #2a2a2a;
+    }
+    
+    .hidden { display: none; }
+    
+    .loading {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 3px solid #000;
+      border-radius: 50%;
+      border-top-color: transparent;
+      animation: spin 1s linear infinite;
+      margin-left: 8px;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <div class="logo">
+        <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='45' fill='%23ffd700'/%3E%3Ctext x='50' y='60' text-anchor='middle' font-size='40' fill='%23000'%3E🎟️%3C/text%3E%3C/svg%3E" alt="Logo">
+      </div>
+      
+      <h1>🎟️ Beitar Ticket Monitor</h1>
+      <p class="subtitle">קבל התראה כשכרטיסים למשחקי בית"ר ירושלים זמינים!</p>
+      
+      <!-- Registration Form -->
+      <div id="registerForm">
+        <div class="trial-badge">
+          🎁 התראות ל-4 משחקים חינם!
+        </div>
+        
+        <div id="errorMsg" class="error hidden"></div>
+        
+        <div class="form-group">
+          <label class="required">מספר טלפון (להתראות SMS)</label>
+          <input type="tel" id="phone" placeholder="050-1234567" required>
+        </div>
+        
+        <div class="form-group">
+          <label>שם (אופציונלי)</label>
+          <input type="text" id="name" placeholder="השם שלך">
+        </div>
+        
+        <div class="form-group">
+          <label>אימייל (אופציונלי - לקבלת עדכונים)</label>
+          <input type="email" id="email" placeholder="your@email.com">
+        </div>
+        
+        <div class="form-group">
+          <label>קוד קופון (אופציונלי)</label>
+          <div style="display: flex; gap: 8px;">
+            <input type="text" id="coupon" placeholder="הזן קוד קופון" style="flex: 1; text-transform: uppercase;">
+            <button type="button" onclick="checkCoupon()" style="padding: 14px 20px; background: #333; border: 2px solid #ffd700; border-radius: 8px; color: #ffd700; cursor: pointer; font-weight: bold;">בדוק</button>
+          </div>
+          <div id="couponStatus" style="margin-top: 6px; font-size: 12px;"></div>
+        </div>
+        
+        <button class="btn" onclick="register()" id="submitBtn">
+          הרשמה חינם 🚀
+        </button>
+        
+        <div class="features">
+          <h3>מה תקבל?</h3>
+          <ul>
+            <li>התראות ל-4 משחקים חינם!</li>
+            <li>התראה מיידית כשכרטיסים זמינים</li>
+            <li>לא תפספס שום משחק!</li>
+          </ul>
+        </div>
+        
+        <div class="pricing-note">
+          לאחר תקופת הניסיון:<br>
+          <strong>₪50/חודש</strong> או <strong>₪400/שנה</strong> (חסכון של ₪200!)
+        </div>
+      </div>
+      
+      <!-- Success Message -->
+      <div id="successMsg" class="hidden">
+        <div class="success">
+          <h2>🎉 נרשמת בהצלחה!</h2>
+          <p>מפתח הרישיון שלך:</p>
+          <div class="license-key" id="licenseKey" onclick="copyKey()">
+            (לחץ להעתקה)
+          </div>
+          <p style="font-size: 14px; margin-top: 12px;">
+            יש לך <strong>התראות ל-4 משחקים</strong> חינם!<br>
+            שמור את המפתח - הוא נשלח גם ב-SMS.
+          </p>
+        </div>
+        
+        <div class="features" style="margin-top: 16px;">
+          <h3>השלב הבא:</h3>
+          <ul>
+            <li>התקן את התוסף לכרום</li>
+            <li>הזן את מפתח הרישיון בהגדרות</li>
+            <li>תקבל התראה כשיש כרטיסים! 🎟️</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    async function register() {
+      const phone = document.getElementById('phone').value.trim();
+      const name = document.getElementById('name').value.trim();
+      const email = document.getElementById('email').value.trim();
+      const errorDiv = document.getElementById('errorMsg');
+      const submitBtn = document.getElementById('submitBtn');
+      
+      errorDiv.classList.add('hidden');
+      
+      if (!phone) {
+        errorDiv.textContent = 'מספר טלפון הוא שדה חובה';
+        errorDiv.classList.remove('hidden');
+        return;
+      }
+      
+      // Validate phone format
+      const phoneClean = phone.replace(/[^\d]/g, '');
+      if (phoneClean.length < 9 || phoneClean.length > 10) {
+        errorDiv.textContent = 'מספר טלפון לא תקין';
+        errorDiv.classList.remove('hidden');
+        return;
+      }
+      
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = 'נרשם... <span class="loading"></span>';
+      
+      try {
+        const coupon = document.getElementById('coupon').value.trim().toUpperCase();
+        const res = await fetch('/api/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone, name, email, coupon })
+        });
+        
+        const data = await res.json();
+        
+        if (!res.ok) {
+          throw new Error(data.error || 'שגיאה בהרשמה');
+        }
+        
+        // Show success
+        document.getElementById('registerForm').classList.add('hidden');
+        document.getElementById('successMsg').classList.remove('hidden');
+        document.getElementById('licenseKey').textContent = data.licenseKey;
+        
+        // Show coupon info if saved
+        if (data.couponSaved) {
+          const couponNote = document.createElement('div');
+          couponNote.style.cssText = 'background: #1a1a1a; border: 2px solid #4CAF50; border-radius: 8px; padding: 12px; margin-top: 12px;';
+          couponNote.innerHTML = `<span style="color: #4CAF50;">🎫 קופון "${data.couponSaved}" נשמר!</span><br><span style="color: #888; font-size: 12px;">ההנחה תחול אוטומטית כשתשדרג לתוכנית בתשלום</span>`;
+          document.querySelector('.success').appendChild(couponNote);
+        }
+        
+      } catch (error) {
+        errorDiv.textContent = error.message;
+        errorDiv.classList.remove('hidden');
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = 'הרשמה חינם 🚀';
+      }
+    }
+    
+    function copyKey() {
+      const key = document.getElementById('licenseKey').textContent;
+      navigator.clipboard.writeText(key);
+      alert('המפתח הועתק ללוח!');
+    }
+    
+    async function checkCoupon() {
+      const coupon = document.getElementById('coupon').value.trim().toUpperCase();
+      const statusDiv = document.getElementById('couponStatus');
+      
+      if (!coupon) {
+        statusDiv.innerHTML = '';
+        return;
+      }
+      
+      try {
+        const res = await fetch(`/api/coupon/validate?code=${coupon}`);
+        const data = await res.json();
+        
+        if (data.valid) {
+          statusDiv.innerHTML = `<span style="color: #4CAF50;">✓ ${data.description} - יוחל בשדרוג לתוכנית בתשלום!</span>`;
+        } else {
+          statusDiv.innerHTML = `<span style="color: #f44336;">✗ ${data.reason}</span>`;
+        }
+      } catch (error) {
+        statusDiv.innerHTML = `<span style="color: #f44336;">שגיאה בבדיקת קופון</span>`;
+      }
+    }
+    
+    // Enter key to submit
+    document.addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') {
+        register();
+      }
+    });
+  </script>
+</body>
+</html>
