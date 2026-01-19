@@ -940,7 +940,7 @@ app.get('/pricing', (req, res) => {
           <li>🔔 + התראות בדפדפן</li>
           <li>⚡ התראות מיידיות לנייד</li>
         </ul>
-        <a href="https://paybox.me/YOUR_LINK" class="btn btn-gold">הרשמה עכשיו</a>
+        <a href="https://links.payboxapp.com/IdiXnIQ13Zb" class="btn btn-gold">הרשמה עכשיו</a>
       </div>
       
       <!-- Yearly Plan -->
@@ -953,7 +953,7 @@ app.get('/pricing', (req, res) => {
           <li>🎁 חיסכון של 30%!</li>
           <li>👑 עדיפות בתמיכה</li>
         </ul>
-        <a href="https://paybox.me/YOUR_LINK" class="btn btn-gold">הרשמה עכשיו</a>
+        <a href="https://links.payboxapp.com/IdiXnIQ13Zb" class="btn btn-gold">הרשמה עכשיו</a>
       </div>
     </div>
     
