@@ -711,37 +711,50 @@ app.post('/api/register', (req, res) => {
   
   // Validate coupon if provided
   let savedCoupon = null;
+  let isVipCoupon = false;
   if (coupon) {
     const couponValidation = validateCoupon(coupon.toUpperCase());
     if (couponValidation.valid) {
       savedCoupon = coupon.toUpperCase();
+      // Check if 100% discount coupon - auto upgrade to VIP
+      if (couponValidation.coupon.discount === 100 && couponValidation.coupon.type === 'percent') {
+        isVipCoupon = true;
+      }
     }
   }
   
   const licenseKey = generateLicenseKey();
   const now = new Date();
   
+  // If VIP coupon (100% off), give yearly plan with unlimited SMS
+  const plan = isVipCoupon ? 'yearly' : 'trial';
+  const smsLimit = isVipCoupon ? 9999 : PRICING.trial.freeSms;
+  const expiresAt = isVipCoupon ? new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000).toISOString() : null;
+  
   data.licenses[licenseKey] = {
     key: licenseKey,
     userName: name || 'אורח',
     userEmail: email || '',
     userPhone: normalizedPhone,
-    plan: 'trial',
+    plan: plan,
     active: true,
     createdAt: now.toISOString(),
-    expiresAt: null, // Trial doesn't expire by date, only by SMS count
-    smsLimit: PRICING.trial.freeSms,
+    expiresAt: expiresAt,
+    smsLimit: smsLimit,
     usage: { emails: 0, sms: 0 },
     lastUsed: null,
-    couponCode: savedCoupon // Will be applied when upgrading
+    couponCode: savedCoupon
   };
   
   saveData();
   
   // Send welcome SMS
   if (twilioClient) {
+    const welcomeMsg = isVipCoupon 
+      ? `🎟️ ברוכים הבאים ל-Beitar Ticket Monitor VIP!\nמפתח הרישיון שלך: ${licenseKey}\n🖤💛 מנוי שנתי ללא הגבלה!`
+      : `🎟️ ברוכים הבאים ל-Beitar Ticket Monitor!\nמפתח הרישיון שלך: ${licenseKey}\nיש לך התראות ל-${PRICING.trial.freeSms} משחקים חינם!`;
     twilioClient.messages.create({
-      body: `🎟️ ברוכים הבאים ל-Beitar Ticket Monitor!\nמפתח הרישיון שלך: ${licenseKey}\nיש לך התראות ל-${PRICING.trial.freeSms} משחקים חינם!`,
+      body: welcomeMsg,
       from: process.env.TWILIO_PHONE_NUMBER,
       to: normalizedPhone
     }).catch(err => console.log('Welcome SMS failed:', err.message));
@@ -752,13 +765,18 @@ app.post('/api/register', (req, res) => {
     sendWelcomeEmail(data.licenses[licenseKey]);
   }
   
+  const responseMsg = isVipCoupon 
+    ? `🖤💛 ברוכים הבאים VIP! יש לך מנוי שנתי עם התראות ללא הגבלה!`
+    : `ברוכים הבאים! יש לך התראות ל-${PRICING.trial.freeSms} משחקים חינם. לאחר מכן תצטרך לשדרג לתוכנית בתשלום.`;
+  
   res.json({ 
     success: true, 
     licenseKey: licenseKey,
-    plan: 'trial',
-    freeSms: PRICING.trial.freeSms,
+    plan: plan,
+    freeSms: smsLimit,
     couponSaved: savedCoupon,
-    message: `ברוכים הבאים! יש לך התראות ל-${PRICING.trial.freeSms} משחקים חינם. לאחר מכן תצטרך לשדרג לתוכנית בתשלום.`
+    isVip: isVipCoupon,
+    message: responseMsg
   });
 });
 
