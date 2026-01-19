@@ -940,7 +940,7 @@ app.get('/pricing', (req, res) => {
           <li>🔔 + התראות בדפדפן</li>
           <li>⚡ התראות מיידיות לנייד</li>
         </ul>
-        <a href="https://links.payboxapp.com/IdiXnIQ13Zb" class="btn btn-gold">הרשמה עכשיו</a>
+        <a href="/subscribe?plan=monthly" class="btn btn-gold">הרשמה עכשיו</a>
       </div>
       
       <!-- Yearly Plan -->
@@ -953,7 +953,7 @@ app.get('/pricing', (req, res) => {
           <li>🎁 חיסכון של 30%!</li>
           <li>👑 עדיפות בתמיכה</li>
         </ul>
-        <a href="https://links.payboxapp.com/IdiXnIQ13Zb" class="btn btn-gold">הרשמה עכשיו</a>
+        <a href="/subscribe?plan=yearly" class="btn btn-gold">הרשמה עכשיו</a>
       </div>
     </div>
     
@@ -970,6 +970,544 @@ app.get('/pricing', (req, res) => {
 </body>
 </html>
   `);
+});
+
+// Subscription page - collect user details before payment
+app.get('/subscribe', (req, res) => {
+  const plan = req.query.plan || 'monthly';
+  const planInfo = plan === 'yearly' 
+    ? { name: 'SMS שנתי', price: 199, period: 'שנה' }
+    : { name: 'SMS חודשי', price: 29, period: 'חודש' };
+  
+  res.send(\`
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>הרשמה - \${planInfo.name}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { 
+      font-family: 'Segoe UI', Arial, sans-serif; 
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      min-height: 100vh; 
+      color: #fff;
+      padding: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .container { 
+      max-width: 450px; 
+      width: 100%;
+      background: rgba(255,255,255,0.05);
+      border-radius: 20px;
+      padding: 40px;
+      border: 2px solid rgba(255,215,0,0.3);
+    }
+    h1 { color: #ffd700; text-align: center; margin-bottom: 10px; }
+    .plan-badge {
+      text-align: center;
+      background: rgba(255,215,0,0.2);
+      padding: 10px 20px;
+      border-radius: 10px;
+      margin-bottom: 30px;
+    }
+    .plan-badge .price { font-size: 2em; color: #ffd700; font-weight: bold; }
+    .plan-badge .period { color: #aaa; }
+    .form-group { margin-bottom: 20px; }
+    label { display: block; margin-bottom: 8px; color: #ccc; }
+    input { 
+      width: 100%; 
+      padding: 15px; 
+      border: 2px solid rgba(255,215,0,0.3);
+      border-radius: 10px; 
+      background: rgba(0,0,0,0.3);
+      color: #fff;
+      font-size: 1.1em;
+      direction: ltr;
+    }
+    input:focus { outline: none; border-color: #ffd700; }
+    input::placeholder { color: #666; }
+    .btn { 
+      width: 100%;
+      padding: 18px; 
+      border: none;
+      border-radius: 30px; 
+      background: linear-gradient(135deg, #ffd700, #ffaa00);
+      color: #000;
+      font-size: 1.2em;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    .btn:hover { transform: scale(1.02); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .error { color: #ff6b6b; margin-top: 10px; text-align: center; display: none; }
+    .coupon-section { margin-top: 20px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.1); }
+    .coupon-row { display: flex; gap: 10px; }
+    .coupon-row input { flex: 1; }
+    .coupon-row button { 
+      padding: 15px 20px; 
+      background: rgba(255,215,0,0.2);
+      border: 2px solid rgba(255,215,0,0.3);
+      border-radius: 10px;
+      color: #ffd700;
+      cursor: pointer;
+    }
+    .coupon-result { margin-top: 10px; padding: 10px; border-radius: 8px; display: none; }
+    .coupon-result.success { background: rgba(74,222,128,0.2); color: #4ade80; }
+    .coupon-result.error { background: rgba(255,107,107,0.2); color: #ff6b6b; display: block; }
+    .back-link { display: block; text-align: center; margin-top: 20px; color: #888; text-decoration: none; }
+    .back-link:hover { color: #ffd700; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎟️ הרשמה</h1>
+    <div class="plan-badge">
+      <div class="price">\${planInfo.price}₪</div>
+      <div class="period">\${planInfo.name} - ל\${planInfo.period}</div>
+    </div>
+    
+    <form id="subscribeForm">
+      <input type="hidden" name="plan" value="\${plan}">
+      
+      <div class="form-group">
+        <label>📧 אימייל</label>
+        <input type="email" name="email" placeholder="your@email.com" required>
+      </div>
+      
+      <div class="form-group">
+        <label>📱 טלפון (לקבלת SMS)</label>
+        <input type="tel" name="phone" placeholder="0501234567" required>
+      </div>
+      
+      <div class="coupon-section">
+        <label>🎁 קוד קופון (אופציונלי)</label>
+        <div class="coupon-row">
+          <input type="text" name="coupon" id="couponInput" placeholder="COUPON123">
+          <button type="button" onclick="checkCoupon()">בדוק</button>
+        </div>
+        <div class="coupon-result" id="couponResult"></div>
+      </div>
+      
+      <button type="submit" class="btn" style="margin-top: 30px;">
+        💳 המשך לתשלום
+      </button>
+      <div class="error" id="errorMsg"></div>
+    </form>
+    
+    <a href="/pricing" class="back-link">← חזרה למחירים</a>
+  </div>
+  
+  <script>
+    let appliedCoupon = null;
+    let finalPrice = \${planInfo.price};
+    
+    async function checkCoupon() {
+      const code = document.getElementById('couponInput').value.trim();
+      const result = document.getElementById('couponResult');
+      
+      if (!code) {
+        result.className = 'coupon-result error';
+        result.textContent = 'הכנס קוד קופון';
+        result.style.display = 'block';
+        return;
+      }
+      
+      try {
+        const res = await fetch('/coupon/validate?code=' + code + '&plan=\${plan}');
+        const data = await res.json();
+        
+        if (data.valid) {
+          appliedCoupon = code;
+          finalPrice = data.finalPrice;
+          result.className = 'coupon-result success';
+          result.textContent = '✅ ' + data.message + ' - מחיר סופי: ' + finalPrice + '₪';
+          result.style.display = 'block';
+        } else {
+          result.className = 'coupon-result error';
+          result.textContent = '❌ ' + data.error;
+          result.style.display = 'block';
+        }
+      } catch (e) {
+        result.className = 'coupon-result error';
+        result.textContent = '❌ שגיאה בבדיקת קופון';
+        result.style.display = 'block';
+      }
+    }
+    
+    document.getElementById('subscribeForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const form = e.target;
+      const btn = form.querySelector('button[type="submit"]');
+      const error = document.getElementById('errorMsg');
+      
+      btn.disabled = true;
+      btn.textContent = '⏳ מעבד...';
+      error.style.display = 'none';
+      
+      const formData = {
+        plan: form.plan.value,
+        email: form.email.value,
+        phone: form.phone.value,
+        coupon: appliedCoupon
+      };
+      
+      try {
+        const res = await fetch('/api/create-pending-order', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(formData)
+        });
+        
+        const data = await res.json();
+        
+        if (data.success) {
+          // Redirect to PayBox
+          window.location.href = data.paymentUrl;
+        } else {
+          error.textContent = data.error || 'שגיאה ביצירת הזמנה';
+          error.style.display = 'block';
+          btn.disabled = false;
+          btn.textContent = '💳 המשך לתשלום';
+        }
+      } catch (e) {
+        error.textContent = 'שגיאת תקשורת';
+        error.style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = '💳 המשך לתשלום';
+      }
+    });
+  </script>
+</body>
+</html>
+  \`);
+});
+
+// Pending orders storage (in production, use database)
+const pendingOrders = {};
+
+// Create pending order before payment
+app.post('/api/create-pending-order', async (req, res) => {
+  const { plan, email, phone, coupon } = req.body;
+  
+  if (!email || !phone) {
+    return res.status(400).json({ error: 'נדרש אימייל וטלפון' });
+  }
+  
+  // Validate plan
+  const planInfo = plan === 'yearly' ? PRICING.yearly : PRICING.monthly;
+  let finalPrice = planInfo.price;
+  
+  // Apply coupon if provided
+  if (coupon) {
+    const validation = validateCoupon(coupon, plan);
+    if (validation.valid) {
+      finalPrice = calculateDiscount(planInfo.price, validation.coupon);
+    }
+  }
+  
+  // Generate order ID
+  const orderId = 'ORD-' + Date.now() + '-' + Math.random().toString(36).substr(2, 6).toUpperCase();
+  
+  // Format phone number
+  let formattedPhone = phone.replace(/\D/g, '');
+  if (formattedPhone.startsWith('0')) {
+    formattedPhone = '+972' + formattedPhone.substring(1);
+  } else if (!formattedPhone.startsWith('+')) {
+    formattedPhone = '+972' + formattedPhone;
+  }
+  
+  // Store pending order
+  pendingOrders[orderId] = {
+    plan,
+    email,
+    phone: formattedPhone,
+    coupon,
+    originalPrice: planInfo.price,
+    finalPrice,
+    createdAt: new Date().toISOString(),
+    status: 'pending'
+  };
+  
+  // Clean old pending orders (older than 1 hour)
+  const oneHourAgo = Date.now() - 60 * 60 * 1000;
+  for (const [id, order] of Object.entries(pendingOrders)) {
+    if (new Date(order.createdAt).getTime() < oneHourAgo) {
+      delete pendingOrders[id];
+    }
+  }
+  
+  console.log(`📝 Created pending order ${orderId} for ${email}, plan: ${plan}, price: ${finalPrice}₪`);
+  
+  // Build PayBox URL with order ID in the reference
+  // PayBox supports passing custom data that will be returned in webhook
+  const payboxUrl = process.env.PAYBOX_URL || 'https://links.payboxapp.com/IdiXnIQ13Zb';
+  
+  res.json({
+    success: true,
+    orderId,
+    paymentUrl: payboxUrl + '?order=' + orderId
+  });
+});
+
+// PayBox Webhook - called after successful payment
+app.post('/webhook/paybox', async (req, res) => {
+  console.log('📥 PayBox Webhook received:', JSON.stringify(req.body));
+  
+  // PayBox sends payment info
+  const { 
+    transaction_id,
+    order_id,      // Our order ID if passed
+    customer_email,
+    customer_phone,
+    amount,
+    status,
+    custom_fields  // May contain our order ID
+  } = req.body;
+  
+  // Try to find order ID
+  let orderId = order_id || req.query.order || custom_fields?.order;
+  
+  // If no order ID, try to find by email from pending orders
+  if (!orderId && customer_email) {
+    for (const [id, order] of Object.entries(pendingOrders)) {
+      if (order.email.toLowerCase() === customer_email.toLowerCase() && order.status === 'pending') {
+        orderId = id;
+        break;
+      }
+    }
+  }
+  
+  // Find pending order
+  const pendingOrder = pendingOrders[orderId];
+  
+  if (pendingOrder) {
+    // Create license from pending order
+    const plan = pendingOrder.plan;
+    const planConfig = plan === 'yearly' ? PRICING.yearly : PRICING.monthly;
+    
+    const licenseKey = generateLicenseKey();
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + planConfig.days);
+    
+    data.licenses[licenseKey] = {
+      plan,
+      userEmail: pendingOrder.email,
+      userPhone: pendingOrder.phone,
+      active: true,
+      createdAt: new Date().toISOString(),
+      expiresAt: expiresAt.toISOString(),
+      smsRemaining: planConfig.smsLimit,
+      smsLimit: planConfig.smsLimit,
+      payboxTransactionId: transaction_id,
+      orderId
+    };
+    
+    saveData();
+    
+    // Mark order as completed
+    pendingOrders[orderId].status = 'completed';
+    pendingOrders[orderId].licenseKey = licenseKey;
+    
+    // Send license by email
+    const emailHtml = `
+      <!DOCTYPE html>
+      <html dir="rtl" lang="he">
+      <head><meta charset="UTF-8"></head>
+      <body style="font-family: Arial; background: #111; color: #fff; padding: 20px;">
+        <div style="max-width: 500px; margin: 0 auto; background: #1a1a1a; border-radius: 15px; padding: 30px; border: 2px solid #ffd700;">
+          <h1 style="color: #ffd700; text-align: center;">🎟️ ברוך הבא!</h1>
+          <p style="text-align: center; color: #ccc;">תודה שנרשמת להתראות כרטיסים של בית"ר ירושלים!</p>
+          
+          <div style="background: #222; padding: 20px; border-radius: 10px; margin: 20px 0;">
+            <p style="margin: 0; color: #888;">מפתח הרשיון שלך:</p>
+            <p style="font-size: 1.5em; color: #ffd700; font-family: monospace; margin: 10px 0; word-break: break-all;">
+              ${licenseKey}
+            </p>
+          </div>
+          
+          <div style="background: #222; padding: 15px; border-radius: 10px; margin: 10px 0;">
+            <p style="margin: 5px 0;">📅 תוקף: עד ${expiresAt.toLocaleDateString('he-IL')}</p>
+            <p style="margin: 5px 0;">📱 SMS נותרו: ${planConfig.smsLimit}</p>
+            <p style="margin: 5px 0;">📧 אימייל: ללא הגבלה</p>
+          </div>
+          
+          <h3 style="color: #ffd700; margin-top: 30px;">איך להשתמש:</h3>
+          <ol style="color: #ccc; line-height: 2;">
+            <li>התקן את התוסף לכרום</li>
+            <li>פתח את התוסף ולחץ על "SMS בתשלום"</li>
+            <li>הכנס את מפתח הרשיון</li>
+            <li>זהו! תקבל SMS כשיש כרטיסים</li>
+          </ol>
+          
+          <p style="text-align: center; margin-top: 30px; color: #888;">
+            💛🖤 בהצלחה במשחקים!
+          </p>
+        </div>
+      </body>
+      </html>
+    `;
+    
+    await sendEmail(pendingOrder.email, '🎟️ מפתח הרשיון שלך - בית"ר ירושלים', emailHtml);
+    
+    // Also send SMS with license key
+    await sendSms(pendingOrder.phone, `בית"ר: מפתח הרשיון שלך: ${licenseKey}`);
+    
+    console.log(`✅ License ${licenseKey} created for ${pendingOrder.email} via PayBox webhook`);
+    
+  } else {
+    // No pending order - create license from PayBox data directly
+    if (customer_email && (status === 'approved' || status === 'success')) {
+      const plan = amount >= 150 ? 'yearly' : 'monthly';
+      const planConfig = plan === 'yearly' ? PRICING.yearly : PRICING.monthly;
+      
+      const licenseKey = generateLicenseKey();
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + planConfig.days);
+      
+      // Format phone if provided
+      let phone = customer_phone || '';
+      if (phone) {
+        phone = phone.replace(/\D/g, '');
+        if (phone.startsWith('0')) {
+          phone = '+972' + phone.substring(1);
+        } else if (!phone.startsWith('+')) {
+          phone = '+972' + phone;
+        }
+      }
+      
+      data.licenses[licenseKey] = {
+        plan,
+        userEmail: customer_email,
+        userPhone: phone,
+        active: true,
+        createdAt: new Date().toISOString(),
+        expiresAt: expiresAt.toISOString(),
+        smsRemaining: planConfig.smsLimit,
+        smsLimit: planConfig.smsLimit,
+        payboxTransactionId: transaction_id
+      };
+      
+      saveData();
+      
+      // Send email with license
+      const emailHtml = `
+        <div dir="rtl" style="font-family: Arial; padding: 20px;">
+          <h1 style="color: #ffd700;">🎟️ מפתח הרשיון שלך</h1>
+          <p style="font-size: 1.5em; background: #f5f5f5; padding: 15px; border-radius: 8px; font-family: monospace;">
+            ${licenseKey}
+          </p>
+          <p>העתק את המפתח והכנס אותו בתוסף כדי לקבל SMS.</p>
+        </div>
+      `;
+      
+      await sendEmail(customer_email, '🎟️ מפתח הרשיון שלך - בית"ר', emailHtml);
+      
+      console.log(`✅ License ${licenseKey} created for ${customer_email} from PayBox direct`);
+    }
+  }
+  
+  res.json({ success: true });
+});
+
+// Also support GET for webhook (some providers use GET)
+app.get('/webhook/paybox', (req, res) => {
+  console.log('📥 PayBox Webhook GET:', req.query);
+  // Process same as POST
+  req.body = req.query;
+  return app._router.handle(req, res, () => {});
+});
+
+// Payment success page
+app.get('/payment/success', (req, res) => {
+  const orderId = req.query.order;
+  const order = pendingOrders[orderId];
+  
+  res.send(\`
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>תשלום הצליח!</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { 
+      font-family: 'Segoe UI', Arial, sans-serif; 
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      min-height: 100vh; 
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .container { 
+      max-width: 500px;
+      text-align: center;
+      background: rgba(255,255,255,0.05);
+      border-radius: 20px;
+      padding: 50px;
+      border: 2px solid #4ade80;
+    }
+    .success-icon { font-size: 5em; margin-bottom: 20px; }
+    h1 { color: #4ade80; margin-bottom: 15px; }
+    p { color: #ccc; margin-bottom: 20px; line-height: 1.6; }
+    .license-box {
+      background: rgba(255,215,0,0.1);
+      border: 2px solid #ffd700;
+      border-radius: 15px;
+      padding: 20px;
+      margin: 25px 0;
+    }
+    .license-box label { color: #888; display: block; margin-bottom: 10px; }
+    .license-key {
+      font-size: 1.3em;
+      font-family: monospace;
+      color: #ffd700;
+      background: rgba(0,0,0,0.3);
+      padding: 15px;
+      border-radius: 8px;
+      word-break: break-all;
+    }
+    .btn {
+      display: inline-block;
+      padding: 15px 40px;
+      background: linear-gradient(135deg, #ffd700, #ffaa00);
+      color: #000;
+      text-decoration: none;
+      border-radius: 30px;
+      font-weight: bold;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="success-icon">✅</div>
+    <h1>התשלום הצליח!</h1>
+    <p>תודה רבה! מפתח הרשיון נשלח אליך באימייל ו-SMS.</p>
+    
+    \${order && order.licenseKey ? \`
+    <div class="license-box">
+      <label>מפתח הרשיון שלך:</label>
+      <div class="license-key">\${order.licenseKey}</div>
+    </div>
+    \` : \`
+    <p>⏳ מפתח הרשיון יגיע בדקות הקרובות...</p>
+    \`}
+    
+    <p>💡 העתק את המפתח והכנס אותו בתוסף בכרום</p>
+    
+    <a href="/pricing#download" class="btn">📥 הורד את התוסף</a>
+  </div>
+</body>
+</html>
+  \`);
 });
 
 // Get pricing info (public)
