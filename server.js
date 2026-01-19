@@ -805,23 +805,171 @@ app.post('/api/register', (req, res) => {
 
 // Redirect /pricing to pricing page
 app.get('/pricing', (req, res) => {
-  res.json({
-    free: {
-      name: 'חינם לתמיד',
-      price: 0,
-      features: ['📧 התראות אימייל ללא הגבלה', '🔔 התראות דפדפן', '⏰ בדיקה כל 5 דקות']
-    },
-    monthly: {
-      name: 'SMS חודשי',
-      price: 29,
-      features: ['📱 עד 50 SMS בחודש', '+ כל התכונות החינמיות']
-    },
-    yearly: {
-      name: 'SMS שנתי',
-      price: 199,
-      features: ['📱 עד 500 SMS בשנה', '+ כל התכונות החינמיות', '🎁 חיסכון של 30%!']
+  res.send(`
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>מחירים - התראות כרטיסים בית"ר ירושלים</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { 
+      font-family: 'Segoe UI', Arial, sans-serif; 
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      min-height: 100vh; 
+      color: #fff;
+      padding: 20px;
     }
-  });
+    .container { max-width: 1000px; margin: 0 auto; }
+    h1 { 
+      text-align: center; 
+      color: #ffd700; 
+      font-size: 2.5em; 
+      margin-bottom: 10px;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+    }
+    .subtitle { text-align: center; color: #aaa; margin-bottom: 40px; font-size: 1.1em; }
+    .pricing-cards { 
+      display: grid; 
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); 
+      gap: 25px; 
+      margin-bottom: 40px;
+    }
+    .card { 
+      background: rgba(255,255,255,0.05); 
+      border-radius: 20px; 
+      padding: 30px; 
+      text-align: center;
+      border: 2px solid rgba(255,215,0,0.2);
+      transition: transform 0.3s, box-shadow 0.3s;
+    }
+    .card:hover { 
+      transform: translateY(-10px); 
+      box-shadow: 0 20px 40px rgba(255,215,0,0.2);
+    }
+    .card.popular { 
+      border-color: #ffd700; 
+      position: relative;
+    }
+    .card.popular::before {
+      content: '⭐ הכי פופולרי';
+      position: absolute;
+      top: -12px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #ffd700;
+      color: #000;
+      padding: 5px 15px;
+      border-radius: 20px;
+      font-size: 0.85em;
+      font-weight: bold;
+    }
+    .card-title { color: #ffd700; font-size: 1.5em; margin-bottom: 15px; }
+    .card-price { font-size: 3em; font-weight: bold; margin: 20px 0; }
+    .card-price span { font-size: 0.4em; color: #888; }
+    .card-price.free { color: #4ade80; }
+    .features { list-style: none; text-align: right; margin: 25px 0; }
+    .features li { 
+      padding: 10px 0; 
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .features li:last-child { border-bottom: none; }
+    .btn { 
+      display: inline-block; 
+      padding: 15px 40px; 
+      border-radius: 30px; 
+      text-decoration: none; 
+      font-weight: bold; 
+      font-size: 1.1em;
+      transition: all 0.3s;
+      cursor: pointer;
+      border: none;
+    }
+    .btn-free { 
+      background: #4ade80; 
+      color: #000; 
+    }
+    .btn-free:hover { background: #22c55e; }
+    .btn-gold { 
+      background: linear-gradient(135deg, #ffd700, #ffaa00); 
+      color: #000; 
+    }
+    .btn-gold:hover { background: linear-gradient(135deg, #ffaa00, #ff8800); }
+    .extension-link {
+      text-align: center;
+      margin-top: 40px;
+      padding: 30px;
+      background: rgba(255,215,0,0.1);
+      border-radius: 15px;
+    }
+    .extension-link h3 { color: #ffd700; margin-bottom: 15px; }
+    .extension-link p { color: #ccc; margin-bottom: 20px; }
+    .footer { text-align: center; margin-top: 40px; color: #666; font-size: 0.9em; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎟️ התראות כרטיסים בית"ר ירושלים</h1>
+    <p class="subtitle">קבל התראה מיידית כשכרטיסים למשחק זמינים!</p>
+    
+    <div class="pricing-cards">
+      <!-- Free Plan -->
+      <div class="card">
+        <div class="card-title">חינם לתמיד</div>
+        <div class="card-price free">0₪</div>
+        <ul class="features">
+          <li>📧 התראות אימייל ללא הגבלה</li>
+          <li>🔔 התראות בדפדפן</li>
+          <li>⏰ בדיקה אוטומטית כל 5 דקות</li>
+          <li>🎯 מעקב אחר כל המשחקים</li>
+        </ul>
+        <a href="#download" class="btn btn-free">התחל חינם!</a>
+      </div>
+      
+      <!-- Monthly Plan -->
+      <div class="card popular">
+        <div class="card-title">SMS חודשי</div>
+        <div class="card-price">29₪ <span>/חודש</span></div>
+        <ul class="features">
+          <li>📱 עד 50 SMS בחודש</li>
+          <li>📧 + אימייל ללא הגבלה</li>
+          <li>🔔 + התראות בדפדפן</li>
+          <li>⚡ התראות מיידיות לנייד</li>
+        </ul>
+        <a href="https://paybox.me/YOUR_LINK" class="btn btn-gold">הרשמה עכשיו</a>
+      </div>
+      
+      <!-- Yearly Plan -->
+      <div class="card">
+        <div class="card-title">SMS שנתי</div>
+        <div class="card-price">199₪ <span>/שנה</span></div>
+        <ul class="features">
+          <li>📱 עד 500 SMS בשנה</li>
+          <li>📧 + אימייל ללא הגבלה</li>
+          <li>🎁 חיסכון של 30%!</li>
+          <li>👑 עדיפות בתמיכה</li>
+        </ul>
+        <a href="https://paybox.me/YOUR_LINK" class="btn btn-gold">הרשמה עכשיו</a>
+      </div>
+    </div>
+    
+    <div class="extension-link" id="download">
+      <h3>📥 הורד את התוסף לכרום</h3>
+      <p>התקן את התוסף וקבל התראות ישירות לדפדפן!</p>
+      <a href="/extension.zip" class="btn btn-gold">הורדת התוסף</a>
+    </div>
+    
+    <div class="footer">
+      <p>💛🖤 בית"ר ירושלים - הקבוצה הכי גדולה בישראל!</p>
+    </div>
+  </div>
+</body>
+</html>
+  `);
 });
 
 // Get pricing info (public)
