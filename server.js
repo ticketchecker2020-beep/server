@@ -572,9 +572,20 @@ app.post('/api/notify', async (req, res) => {
     results.email = await sendEmail(email, '🎟️ כרטיסים זמינים - בית"ר ירושלים!', htmlContent);
   }
 
-  // Send SMS
+  // Send SMS - keep it SHORT to minimize segments (Hebrew = 67 chars per segment after first)
   if (phone) {
-    const smsMessage = `🎟️ בית"ר - כרטיסים זמינים!\n\n${smsGamesList}\n\n${firstGameUrl}`;
+    // Short format: "🎟️ בית"ר VS חיפה 95₪ leaan.co.il"
+    const shortGames = games.slice(0, 2).map(g => {
+      // Extract opponent name only
+      const opponent = g.name.replace(/בית"ר ירושלים[^-]*-\s*/i, '').trim();
+      const price = g.price ? ` ${g.price}₪` : '';
+      return `${opponent}${price}`;
+    }).join(', ');
+    
+    // Keep SMS under 70 chars if possible (1 segment), or under 134 (2 segments)
+    const smsMessage = `🎟️ בית"ר: ${shortGames}\nleaan.co.il`;
+    
+    console.log(`SMS length: ${smsMessage.length} chars`);
     results.sms = await sendSMS(phone, smsMessage);
     
     // Update license usage if SMS was sent
