@@ -518,6 +518,16 @@ app.post('/api/notify', async (req, res) => {
     const date = g.date ? new Date(g.date).toLocaleDateString('he-IL') : '';
     return `• ${g.name} ${date ? `(${date})` : ''} - ${g.price ? g.price + '₪' : 'מחיר לא ידוע'}`;
   }).join('\n');
+  
+  // Build SMS message with direct links (shorter format)
+  const smsGamesList = games.map(g => {
+    const shortName = g.name.replace(/בית"ר ירושלים[^-]*-\s*/i, 'VS ');
+    const price = g.price ? ` (${g.price}₪)` : '';
+    return `${shortName}${price}`;
+  }).join('\n');
+  
+  // Get first game URL for SMS (SMS has length limit)
+  const firstGameUrl = games[0]?.url || 'https://www.leaan.co.il';
 
   // Send Email
   if (email) {
@@ -564,7 +574,7 @@ app.post('/api/notify', async (req, res) => {
 
   // Send SMS
   if (phone) {
-    const smsMessage = `🎟️ בית"ר ירושלים - כרטיסים זמינים!\n\n${gamesList}\n\nלרכישה: leaan.co.il`;
+    const smsMessage = `🎟️ בית"ר - כרטיסים זמינים!\n\n${smsGamesList}\n\n${firstGameUrl}`;
     results.sms = await sendSMS(phone, smsMessage);
     
     // Update license usage if SMS was sent
