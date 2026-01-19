@@ -537,39 +537,31 @@ app.post('/api/notify', async (req, res) => {
       <head>
         <meta charset="UTF-8">
         <style>
-          body { font-family: Arial, sans-serif; background: #1a1a2e; color: #fff; padding: 20px; }
-          .container { max-width: 600px; margin: 0 auto; background: #16213e; border-radius: 12px; padding: 30px; }
-          h1 { color: #ffd700; text-align: center; }
-          .game { background: #1a1a2e; padding: 15px; margin: 10px 0; border-radius: 8px; border-right: 4px solid #ffd700; }
-          .game-name { font-size: 18px; font-weight: bold; color: #fff; }
-          .game-details { color: #aaa; margin-top: 5px; }
-          .btn { display: inline-block; background: #ffd700; color: #1a1a2e; padding: 12px 24px; text-decoration: none; border-radius: 25px; font-weight: bold; margin-top: 10px; }
-          .footer { text-align: center; margin-top: 20px; color: #666; font-size: 12px; }
+          body { font-family: Arial, sans-serif; background: #000; color: #fff; padding: 15px; margin: 0; }
+          .container { max-width: 400px; margin: 0 auto; background: #111; border-radius: 10px; padding: 20px; border: 2px solid #ffd700; }
+          h1 { color: #ffd700; text-align: center; margin: 0 0 15px 0; font-size: 20px; }
+          .game { background: #1a1a1a; padding: 12px; margin: 8px 0; border-radius: 8px; border-right: 3px solid #ffd700; }
+          .name { font-weight: bold; }
+          .details { color: #aaa; font-size: 13px; margin-top: 5px; }
+          .btn { display: inline-block; background: #ffd700; color: #000; padding: 8px 16px; text-decoration: none; border-radius: 20px; font-weight: bold; font-size: 13px; margin-top: 8px; }
         </style>
       </head>
       <body>
         <div class="container">
           <h1>🎟️ כרטיסים זמינים!</h1>
-          <p>שלום! יש כרטיסים חדשים זמינים למשחקי בית"ר ירושלים:</p>
           ${games.map(g => `
             <div class="game">
-              <div class="game-name">${g.name}</div>
-              <div class="game-details">
-                ${g.date ? `📅 ${new Date(g.date).toLocaleDateString('he-IL')}` : ''}
-                ${g.price ? `💰 החל מ-${g.price}₪` : ''}
-              </div>
-              ${g.url ? `<a href="${g.url}" class="btn">לרכישת כרטיסים</a>` : ''}
+              <div class="name">${g.name}</div>
+              <div class="details">${g.price ? `${g.price}₪` : ''}</div>
+              ${g.url ? `<a href="${g.url}" class="btn">לרכישה</a>` : ''}
             </div>
           `).join('')}
-          <div class="footer">
-            <p>הודעה זו נשלחה מ-Beitar Ticket Monitor</p>
-          </div>
         </div>
       </body>
       </html>
     `;
 
-    results.email = await sendEmail(email, '🎟️ כרטיסים זמינים - בית"ר ירושלים!', htmlContent);
+    results.email = await sendEmail(email, '🎟️ כרטיסים - בית"ר!', htmlContent);
   }
 
   // Send SMS - keep it SHORT to minimize segments (Hebrew = 67 chars per segment after first)
@@ -965,56 +957,29 @@ app.post('/api/admin/licenses', (req, res) => {
 async function sendWelcomeEmail(license) {
   if (!emailTransporter) return;
   
+  const planName = license.plan === 'monthly' ? 'חודשי' : license.plan === 'yearly' ? 'שנתי VIP 🖤💛' : 'לצמיתות';
+  
   const htmlContent = `
     <!DOCTYPE html>
     <html dir="rtl" lang="he">
     <head>
       <meta charset="UTF-8">
       <style>
-        body { font-family: Arial, sans-serif; background: #000; color: #fff; padding: 20px; }
-        .container { max-width: 500px; margin: 0 auto; background: #111; border-radius: 12px; padding: 30px; border: 2px solid #ffd700; }
-        h1 { color: #ffd700; text-align: center; }
-        .license-box { background: #1a1a1a; padding: 20px; border-radius: 8px; text-align: center; margin: 20px 0; border: 2px dashed #ffd700; }
-        .license-key { font-family: monospace; font-size: 18px; color: #ffd700; letter-spacing: 2px; }
-        .info { background: #1a1a1a; padding: 15px; border-radius: 8px; margin: 15px 0; }
-        .steps { background: #1a1a1a; padding: 15px; border-radius: 8px; }
-        .steps li { margin: 10px 0; }
-        .footer { text-align: center; margin-top: 20px; color: #666; font-size: 12px; }
+        body { font-family: Arial, sans-serif; background: #000; color: #fff; padding: 20px; margin: 0; }
+        .container { max-width: 400px; margin: 0 auto; background: #111; border-radius: 12px; padding: 25px; border: 2px solid #ffd700; }
+        h1 { color: #ffd700; text-align: center; margin: 0 0 15px 0; font-size: 22px; }
+        .key { background: #1a1a1a; padding: 15px; border-radius: 8px; text-align: center; border: 2px dashed #ffd700; margin: 15px 0; }
+        .key span { font-family: monospace; font-size: 16px; color: #ffd700; }
+        .info { color: #aaa; font-size: 14px; text-align: center; }
       </style>
     </head>
     <body>
       <div class="container">
         <h1>🎟️ ברוכים הבאים!</h1>
-        
-        <p>שלום ${license.userName},</p>
-        <p>הרישיון שלך ל-Beitar Ticket Monitor מוכן!</p>
-        
-        <div class="license-box">
-          <p style="margin: 0; color: #888;">מפתח הרישיון שלך:</p>
-          <p class="license-key">${license.key}</p>
+        <div class="key">
+          <span>${license.key}</span>
         </div>
-        
-        <div class="info">
-          <p><strong>תוכנית:</strong> ${license.plan === 'monthly' ? 'חודשי' : license.plan === 'yearly' ? 'שנתי' : 'לצמיתות'}</p>
-          ${license.expiresAt ? `<p><strong>תוקף עד:</strong> ${new Date(license.expiresAt).toLocaleDateString('he-IL')}</p>` : ''}
-          <p><strong>מכסת SMS:</strong> ${license.smsLimit} הודעות</p>
-        </div>
-        
-        <div class="steps">
-          <p><strong>איך להפעיל:</strong></p>
-          <ol>
-            <li>פתח את התוסף בדפדפן</li>
-            <li>הפעל "התראות שרת"</li>
-            <li>הדבק את מפתח הרישיון</li>
-            <li>הזן את האימייל שלך</li>
-            <li>לחץ "שמור ובדוק רישיון"</li>
-          </ol>
-        </div>
-        
-        <div class="footer">
-          <p>בהצלחה! 🖤💛</p>
-          <p>Beitar Ticket Monitor</p>
-        </div>
+        <p class="info">תוכנית: ${planName}<br>SMS: ${license.smsLimit} הודעות</p>
       </div>
     </body>
     </html>
@@ -1024,7 +989,7 @@ async function sendWelcomeEmail(license) {
     await emailTransporter.sendMail({
       from: `"Beitar Ticket Monitor 🎟️" <${process.env.EMAIL_USER}>`,
       to: license.userEmail,
-      subject: `🎟️ ברוכים הבאים! הרישיון שלך מוכן - בית"ר ירושלים`,
+      subject: `🎟️ מפתח הרישיון שלך - בית"ר`,
       html: htmlContent
     });
     console.log(`📧 Welcome email sent to ${license.userEmail}`);
