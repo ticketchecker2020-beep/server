@@ -803,6 +803,27 @@ app.post('/api/register', (req, res) => {
   });
 });
 
+// Redirect /pricing to pricing page
+app.get('/pricing', (req, res) => {
+  res.json({
+    free: {
+      name: 'חינם לתמיד',
+      price: 0,
+      features: ['📧 התראות אימייל ללא הגבלה', '🔔 התראות דפדפן', '⏰ בדיקה כל 5 דקות']
+    },
+    monthly: {
+      name: 'SMS חודשי',
+      price: 29,
+      features: ['📱 עד 50 SMS בחודש', '+ כל התכונות החינמיות']
+    },
+    yearly: {
+      name: 'SMS שנתי',
+      price: 199,
+      features: ['📱 עד 500 SMS בשנה', '+ כל התכונות החינמיות', '🎁 חיסכון של 30%!']
+    }
+  });
+});
+
 // Get pricing info (public)
 app.get('/api/pricing', (req, res) => {
   const couponCode = req.query.coupon?.toUpperCase();
