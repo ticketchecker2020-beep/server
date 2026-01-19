@@ -1105,6 +1105,8 @@ app.get('/api/license/validate', (req, res) => {
     res.json({
       valid: true,
       userName: license.userName,
+      userEmail: license.userEmail,
+      userPhone: license.userPhone,
       plan: license.plan,
       planName: PRICING[license.plan]?.name || license.plan,
       expiresAt: license.expiresAt,
