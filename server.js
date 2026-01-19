@@ -803,6 +803,55 @@ app.post('/api/register', (req, res) => {
   });
 });
 
+// Privacy Policy page (required for Chrome Web Store)
+app.get('/privacy', (req, res) => {
+  res.send(`
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>מדיניות פרטיות - התראות כרטיסים בית"ר ירושלים</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; line-height: 1.8; background: #1a1a2e; color: #fff; }
+    h1 { color: #ffd700; }
+    h2 { color: #ffd700; margin-top: 30px; }
+    a { color: #ffd700; }
+  </style>
+</head>
+<body>
+  <h1>מדיניות פרטיות</h1>
+  <p><strong>עדכון אחרון:</strong> ינואר 2026</p>
+  
+  <h2>מידע שאנחנו אוספים</h2>
+  <p>התוסף "התראות כרטיסים - בית"ר ירושלים" אוסף את המידע הבא:</p>
+  <ul>
+    <li><strong>כתובת אימייל</strong> - לצורך שליחת התראות על כרטיסים זמינים</li>
+    <li><strong>מספר טלפון</strong> - לצורך שליחת SMS (למנויים בתשלום בלבד)</li>
+  </ul>
+  
+  <h2>איך אנחנו משתמשים במידע</h2>
+  <p>המידע משמש אך ורק לצורך:</p>
+  <ul>
+    <li>שליחת התראות כאשר כרטיסים למשחקי בית"ר ירושלים זמינים</li>
+    <li>ניהול המנוי שלך</li>
+  </ul>
+  
+  <h2>שמירת מידע</h2>
+  <p>המידע נשמר בצורה מאובטחת בשרתים שלנו. אנחנו לא מוכרים או משתפים את המידע עם צדדים שלישיים.</p>
+  
+  <h2>מחיקת מידע</h2>
+  <p>ניתן לבקש מחיקת המידע בכל עת על ידי פנייה אלינו.</p>
+  
+  <h2>יצירת קשר</h2>
+  <p>לשאלות בנושא פרטיות: ticketchecker2020@gmail.com</p>
+  
+  <p style="margin-top: 40px; color: #888;">💛🖤 בית"ר ירושלים</p>
+</body>
+</html>
+  `);
+});
+
 // Redirect /pricing to pricing page
 app.get('/pricing', (req, res) => {
   res.send(`
