@@ -50,10 +50,12 @@ function saveData() {
 let data = loadData();
 
 // Pricing configuration
+// FREE = Email only (unlimited)
+// PAID = Email + SMS
 const PRICING = {
-  trial: { name: 'ניסיון', freeSms: 4, price: 0 },
-  monthly: { name: 'חודשי', days: 30, price: 50, smsLimit: 100 },
-  yearly: { name: 'שנתי', days: 365, price: 400, smsLimit: 1200 }
+  free: { name: 'חינם', price: 0, smsLimit: 0, emailUnlimited: true },
+  monthly: { name: 'SMS חודשי', days: 30, price: 29, smsLimit: 50 },
+  yearly: { name: 'SMS שנתי', days: 365, price: 199, smsLimit: 500 }
 };
 
 // Coupon codes configuration
@@ -104,23 +106,30 @@ function isLicenseValid(licenseKey) {
   if (!license) return { valid: false, reason: 'רישיון לא קיים' };
   if (!license.active) return { valid: false, reason: 'רישיון מושבת' };
   
-  // Trial mode - check if free SMS used up
-  if (license.plan === 'trial') {
-    if (license.usage.sms >= PRICING.trial.freeSms) {
-      return { 
-        valid: false, 
-        reason: 'תקופת הניסיון הסתיימה - נוצלו 2 ה-SMS החינמיים',
-        trialEnded: true
-      };
-    }
-    return { valid: true, license, isTrial: true, smsLeft: PRICING.trial.freeSms - license.usage.sms };
+  // Free plan - always valid for email, no SMS
+  if (license.plan === 'free') {
+    return { 
+      valid: true, 
+      license, 
+      isFree: true, 
+      emailOnly: true,
+      canSendSms: false
+    };
   }
   
   // Paid plans - check expiry
   if (license.expiresAt && new Date(license.expiresAt) < new Date()) {
-    return { valid: false, reason: 'רישיון פג תוקף' };
+    return { valid: false, reason: 'רישיון SMS פג תוקף - אימייל עדיין פעיל', emailStillWorks: true };
   }
-  return { valid: true, license };
+  
+  // Check SMS limit
+  const smsLeft = license.smsLimit - (license.usage?.sms || 0);
+  return { 
+    valid: true, 
+    license,
+    canSendSms: smsLeft > 0,
+    smsLeft
+  };
 }
 
 // Send license expiry reminder email
@@ -487,25 +496,21 @@ app.post('/api/notify', async (req, res) => {
   
   // Validate license if provided
   let license = null;
+  let canSendSms = false;
+  
   if (licenseKey) {
     const validation = isLicenseValid(licenseKey);
-    if (!validation.valid) {
+    
+    // Even if SMS expired, email still works
+    if (!validation.valid && !validation.emailStillWorks) {
       return res.status(403).json({ 
         error: validation.reason,
-        trialEnded: validation.trialEnded || false,
         upgradeUrl: process.env.PAYBOX_URL || '/pricing'
       });
     }
-    license = validation.license;
     
-    // Check SMS limit for paid plans
-    if (license.plan !== 'trial' && license.usage.sms >= license.smsLimit) {
-      return res.status(403).json({ 
-        error: 'מכסת ה-SMS החודשית הגיעה למגבלה',
-        smsUsed: license.usage.sms,
-        smsLimit: license.smsLimit
-      });
-    }
+    license = validation.license || data.licenses[licenseKey];
+    canSendSms = validation.canSendSms || false;
   }
 
   const results = {
@@ -564,8 +569,8 @@ app.post('/api/notify', async (req, res) => {
     results.email = await sendEmail(email, '🎟️ כרטיסים - בית"ר!', htmlContent);
   }
 
-  // Send SMS - keep it SHORT to minimize segments (Hebrew = 67 chars per segment after first)
-  if (phone) {
+  // Send SMS - ONLY for paid plans with SMS remaining
+  if (phone && canSendSms) {
     // Short format: "🎟️ בית"ר VS חיפה 95₪ leaan.co.il"
     const shortGames = games.slice(0, 2).map(g => {
       // Extract opponent name only
@@ -587,22 +592,24 @@ app.post('/api/notify', async (req, res) => {
       data.licenses[licenseKey] = license;
       saveData();
     }
+  } else if (phone && !canSendSms) {
+    // User has phone but no SMS plan
+    results.smsSkipped = true;
+    results.smsReason = license?.plan === 'free' ? 'תוכנית חינם - אימייל בלבד' : 'מכסת SMS נגמרה';
   }
 
-  // Calculate SMS left for trial users
+  // Calculate SMS info for response
   let smsInfo = null;
   if (license) {
-    if (license.plan === 'trial') {
-      smsInfo = {
-        smsLeft: PRICING.trial.freeSms - license.usage.sms,
-        isTrial: true
-      };
-    } else {
-      smsInfo = {
-        smsUsed: license.usage.sms,
-        smsLimit: license.smsLimit,
-        isTrial: false
-      };
+    const smsUsed = license.usage?.sms || 0;
+    const smsLimit = license.smsLimit || 0;
+    smsInfo = {
+      plan: license.plan,
+      smsUsed,
+      smsLimit,
+      smsLeft: Math.max(0, smsLimit - smsUsed),
+      canSendSms
+    };
     }
   }
 
@@ -761,11 +768,9 @@ app.post('/api/register', (req, res) => {
   
   saveData();
   
-  // Send welcome SMS
-  if (twilioClient) {
-    const welcomeMsg = isVipCoupon 
-      ? `🎟️ ברוכים הבאים ל-Beitar Ticket Monitor VIP!\nמפתח הרישיון שלך: ${licenseKey}\n🖤💛 מנוי שנתי ללא הגבלה!`
-      : `🎟️ ברוכים הבאים ל-Beitar Ticket Monitor!\nמפתח הרישיון שלך: ${licenseKey}\nיש לך התראות ל-${PRICING.trial.freeSms} משחקים חינם!`;
+  // Send welcome SMS only for VIP (100% discount coupon) - don't waste money on free users
+  if (twilioClient && isVipCoupon) {
+    const welcomeMsg = `🎟️ VIP! מפתח: ${licenseKey}\n🖤💛 SMS ללא הגבלה!`;
     twilioClient.messages.create({
       body: welcomeMsg,
       from: process.env.TWILIO_PHONE_NUMBER,
@@ -779,14 +784,14 @@ app.post('/api/register', (req, res) => {
   }
   
   const responseMsg = isVipCoupon 
-    ? `🖤💛 ברוכים הבאים VIP! יש לך מנוי שנתי עם התראות ללא הגבלה!`
-    : `ברוכים הבאים! יש לך התראות ל-${PRICING.trial.freeSms} משחקים חינם. לאחר מכן תצטרך לשדרג לתוכנית בתשלום.`;
+    ? `🖤💛 VIP! אימייל + SMS ללא הגבלה!`
+    : `ברוכים הבאים! התראות אימייל ללא הגבלה - חינם! לקבלת SMS יש לשדרג.`;
   
   res.json({ 
     success: true, 
     licenseKey: licenseKey,
     plan: plan,
-    freeSms: smsLimit,
+    smsLimit: smsLimit,
     couponSaved: savedCoupon,
     isVip: isVipCoupon,
     message: responseMsg
@@ -915,7 +920,7 @@ app.post('/api/admin/licenses', (req, res) => {
   
   // Set expiry and limits based on plan
   let expiresAt = null;
-  let smsLimit = PRICING.trial.freeSms;
+  let smsLimit = 0; // Free plan = no SMS
   
   if (plan === 'monthly') {
     expiresAt = new Date(now.getTime() + PRICING.monthly.days * 24 * 60 * 60 * 1000);
@@ -930,7 +935,7 @@ app.post('/api/admin/licenses', (req, res) => {
     userName: userName || 'Unknown',
     userEmail: userEmail || '',
     userPhone: userPhone || '',
-    plan: plan || 'trial',
+    plan: plan || 'free',
     active: true,
     createdAt: now.toISOString(),
     expiresAt: expiresAt ? expiresAt.toISOString() : null,
