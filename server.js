@@ -387,35 +387,84 @@ async function sendEmail(to, subject, htmlContent) {
   }
 }
 
-// Send SMS
+// Send SMS - supports both Inforu (cheap) and Twilio (fallback)
 async function sendSMS(to, message) {
-  if (!twilioClient) {
-    console.log('Twilio not configured, skipping SMS...');
-    return false;
+  // Format Israeli phone number
+  let phone = to.replace(/[^\d+]/g, '');
+  if (phone.startsWith('+972')) {
+    phone = '0' + phone.substring(4); // Convert to local format for Inforu
+  } else if (!phone.startsWith('0')) {
+    phone = '0' + phone;
   }
-
-  try {
-    // Format Israeli phone number
-    let phone = to.replace(/[^\d+]/g, '');
-    if (phone.startsWith('0')) {
-      phone = '+972' + phone.substring(1);
-    } else if (!phone.startsWith('+')) {
-      phone = '+972' + phone;
+  
+  // Try Inforu first (much cheaper!)
+  if (process.env.INFORU_USER && process.env.INFORU_PASSWORD) {
+    try {
+      const inforuUrl = 'https://api.inforu.co.il/SendMessageXml.ashx';
+      const xmlData = `
+        <Inforu>
+          <User>
+            <Username>${process.env.INFORU_USER}</Username>
+            <Password>${process.env.INFORU_PASSWORD}</Password>
+          </User>
+          <Content Type="sms">
+            <Message>${message}</Message>
+          </Content>
+          <Recipients>
+            <PhoneNumber>${phone}</PhoneNumber>
+          </Recipients>
+          <Settings>
+            <Sender>${process.env.INFORU_SENDER || 'Beitar'}</Sender>
+          </Settings>
+        </Inforu>
+      `;
+      
+      const response = await fetch(inforuUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/xml' },
+        body: xmlData
+      });
+      
+      const result = await response.text();
+      
+      if (result.includes('Status>1<') || result.includes('OK')) {
+        console.log(`✅ SMS sent via Inforu to ${phone}`);
+        trackUsage('sms', true, { provider: 'inforu', to: phone.substring(0, 3) + '***' });
+        return true;
+      } else {
+        console.error(`❌ Inforu SMS failed:`, result);
+      }
+    } catch (error) {
+      console.error(`❌ Inforu error:`, error.message);
     }
-
-    await twilioClient.messages.create({
-      body: message,
-      from: process.env.TWILIO_PHONE_NUMBER,
-      to: phone
-    });
-    console.log(`✅ SMS sent to ${phone}`);
-    trackUsage('sms', true, { to: phone.substring(0, 6) + '***' });
-    return true;
-  } catch (error) {
-    console.error(`❌ SMS failed to ${to}:`, error.message);
-    trackUsage('sms', false, { error: error.message });
-    return false;
   }
+  
+  // Fallback to Twilio if Inforu not configured or failed
+  if (twilioClient) {
+    try {
+      // Convert back to international format for Twilio
+      let twilioPhone = phone;
+      if (phone.startsWith('0')) {
+        twilioPhone = '+972' + phone.substring(1);
+      }
+      
+      await twilioClient.messages.create({
+        body: message,
+        from: process.env.TWILIO_PHONE_NUMBER,
+        to: twilioPhone
+      });
+      console.log(`✅ SMS sent via Twilio to ${twilioPhone}`);
+      trackUsage('sms', true, { provider: 'twilio', to: twilioPhone.substring(0, 6) + '***' });
+      return true;
+    } catch (error) {
+      console.error(`❌ Twilio SMS failed:`, error.message);
+      trackUsage('sms', false, { error: error.message });
+      return false;
+    }
+  }
+  
+  console.log('⚠️ No SMS provider configured');
+  return false;
 }
 
 // Check Twilio Balance
