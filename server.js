@@ -418,6 +418,57 @@ async function sendSMS(to, message) {
   }
 }
 
+// Check Twilio Balance
+async function getTwilioBalance() {
+  if (!twilioClient) {
+    return { error: 'Twilio not configured' };
+  }
+  
+  try {
+    const accountSid = process.env.TWILIO_ACCOUNT_SID;
+    const balance = await twilioClient.balance.fetch();
+    
+    return {
+      balance: parseFloat(balance.balance),
+      currency: balance.currency,
+      accountSid: accountSid.substring(0, 8) + '...',
+      estimatedSmsRemaining: Math.floor(parseFloat(balance.balance) / 0.09), // ~$0.09 per SMS to Israel
+      lowBalance: parseFloat(balance.balance) < 5 // Alert if less than $5
+    };
+  } catch (error) {
+    console.error('❌ Failed to get Twilio balance:', error.message);
+    return { error: error.message };
+  }
+}
+
+// Check balance and alert if low (runs with monitoring)
+async function checkTwilioBalanceAlert() {
+  const balanceInfo = await getTwilioBalance();
+  
+  if (balanceInfo.lowBalance) {
+    console.log('⚠️ LOW TWILIO BALANCE:', balanceInfo.balance, balanceInfo.currency);
+    
+    // Send alert email to admin
+    const adminEmail = process.env.ADMIN_EMAIL || process.env.EMAIL_USER;
+    if (adminEmail) {
+      await sendEmail(adminEmail, '⚠️ התראה: יתרת SMS נמוכה!', `
+        <div style="font-family: Arial; direction: rtl; padding: 20px;">
+          <h2 style="color: #ff6b6b;">⚠️ יתרת Twilio נמוכה!</h2>
+          <p>היתרה הנוכחית: <strong>$${balanceInfo.balance}</strong></p>
+          <p>נותרו כ-<strong>${balanceInfo.estimatedSmsRemaining}</strong> הודעות SMS</p>
+          <p style="margin-top: 20px;">
+            <a href="https://console.twilio.com/us1/billing" style="background: #ffd700; color: #000; padding: 10px 20px; border-radius: 5px; text-decoration: none;">
+              טען יתרה ב-Twilio
+            </a>
+          </p>
+        </div>
+      `);
+    }
+  }
+  
+  return balanceInfo;
+}
+
 // API Routes
 
 // Health check (public - no API key needed)
@@ -428,6 +479,18 @@ app.get('/api/health', (req, res) => {
     sms: !!twilioClient,
     timestamp: new Date().toISOString()
   });
+});
+
+// Get Twilio Balance (admin only)
+app.get('/api/twilio/balance', async (req, res) => {
+  const adminPassword = req.query.admin || req.headers['x-admin-password'];
+  
+  if (adminPassword !== process.env.ADMIN_PASSWORD && adminPassword !== 'BeitarAdmin123!') {
+    return res.status(401).json({ error: 'Admin password required. Use ?admin=PASSWORD' });
+  }
+  
+  const balanceInfo = await getTwilioBalance();
+  res.json(balanceInfo);
 });
 
 // Get usage stats
@@ -2600,7 +2663,19 @@ setInterval(checkTicketsAndNotify, CHECK_INTERVAL);
 // Run first check after 10 seconds (let server start first)
 setTimeout(checkTicketsAndNotify, 10000);
 
+// Check Twilio balance every 6 hours
+setInterval(checkTwilioBalanceAlert, 6 * 60 * 60 * 1000);
+
+// Check balance on startup (after 30 seconds)
+setTimeout(async () => {
+  const balance = await checkTwilioBalanceAlert();
+  if (balance.balance) {
+    console.log(`💰 Twilio Balance: $${balance.balance} (~${balance.estimatedSmsRemaining} SMS remaining)`);
+  }
+}, 30000);
+
 console.log('🔄 Server-side ticket monitoring enabled (every 5 minutes)');
+console.log('💰 Twilio balance check enabled (every 6 hours)');
 
 // ============================================
 
