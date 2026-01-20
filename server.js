@@ -1324,19 +1324,24 @@ app.get('/admin', async (req, res) => {
     const isExpired = new Date(lic.expiresAt) < new Date();
     const statusClass = isExpired ? 'expired' : (lic.active ? 'active' : 'inactive');
     const statusText = isExpired ? '⏰ פג תוקף' : (lic.active ? '✅ פעיל' : '❌ לא פעיל');
-    return \`
-      <tr class="\${statusClass}">
-        <td style="font-family: monospace; font-size: 0.85em;">\${key}</td>
-        <td>\${lic.userEmail || '-'}</td>
-        <td>\${lic.plan || 'free'}</td>
-        <td>\${lic.smsRemaining || 0}</td>
-        <td>\${statusText}</td>
-        <td>\${new Date(lic.expiresAt).toLocaleDateString('he-IL')}</td>
+    return `
+      <tr class="${statusClass}">
+        <td style="font-family: monospace; font-size: 0.85em;">${key}</td>
+        <td>${lic.userEmail || '-'}</td>
+        <td>${lic.plan || 'free'}</td>
+        <td>${lic.smsRemaining || 0}</td>
+        <td>${statusText}</td>
+        <td>${new Date(lic.expiresAt).toLocaleDateString('he-IL')}</td>
       </tr>
-    \`;
+    `;
   }).join('');
   
-  res.send(\`
+  const balanceCardBg = twilioBalance.lowBalance ? 'rgba(255,107,107,0.2)' : 'rgba(74,222,128,0.2)';
+  const balanceCardBorder = twilioBalance.lowBalance ? '#ff6b6b' : '#4ade80';
+  const balanceCardColor = twilioBalance.lowBalance ? '#ff6b6b' : '#4ade80';
+  const lowBalanceAlert = twilioBalance.lowBalance ? '<div class="alert alert-warning">⚠️ יתרת Twilio נמוכה! טען יתרה בהקדם.</div>' : '';
+  
+  res.send(`
 <!DOCTYPE html>
 <html dir="rtl" lang="he">
 <head>
@@ -1376,11 +1381,11 @@ app.get('/admin', async (req, res) => {
     .stat-label { color: #aaa; margin-top: 5px; }
     
     .balance-card {
-      background: \${twilioBalance.lowBalance ? 'rgba(255,107,107,0.2)' : 'rgba(74,222,128,0.2)'};
-      border-color: \${twilioBalance.lowBalance ? '#ff6b6b' : '#4ade80'};
+      background: ${balanceCardBg};
+      border-color: ${balanceCardBorder};
     }
     .balance-card .stat-value {
-      color: \${twilioBalance.lowBalance ? '#ff6b6b' : '#4ade80'};
+      color: ${balanceCardColor};
     }
     
     .section {
@@ -1405,6 +1410,8 @@ app.get('/admin', async (req, res) => {
       cursor: pointer;
       font-weight: bold;
       margin: 5px;
+      text-decoration: none;
+      display: inline-block;
     }
     .btn-primary { background: #ffd700; color: #000; }
     .btn-danger { background: #ff6b6b; color: #fff; }
@@ -1426,40 +1433,40 @@ app.get('/admin', async (req, res) => {
   <div class="container">
     <h1>🎟️ Admin Dashboard - בית"ר ירושלים</h1>
     
-    \${twilioBalance.lowBalance ? '<div class="alert alert-warning">⚠️ יתרת Twilio נמוכה! טען יתרה בהקדם.</div>' : ''}
+    ${lowBalanceAlert}
     
     <div class="stats-grid">
       <div class="stat-card balance-card">
-        <div class="stat-value">$\${twilioBalance.balance?.toFixed(2) || '?'}</div>
+        <div class="stat-value">$${twilioBalance.balance?.toFixed(2) || '?'}</div>
         <div class="stat-label">💰 יתרת Twilio</div>
         <div style="margin-top: 10px; font-size: 0.9em; color: #888;">
-          ~\${twilioBalance.estimatedSmsRemaining || '?'} SMS נותרו
+          ~${twilioBalance.estimatedSmsRemaining || '?'} SMS נותרו
         </div>
       </div>
       
       <div class="stat-card">
-        <div class="stat-value">\${activeLicenses}</div>
+        <div class="stat-value">${activeLicenses}</div>
         <div class="stat-label">🔑 רשיונות פעילים</div>
       </div>
       
       <div class="stat-card">
-        <div class="stat-value">\${subscriberCount}</div>
+        <div class="stat-value">${subscriberCount}</div>
         <div class="stat-label">📧 מנויי אימייל</div>
       </div>
       
       <div class="stat-card">
-        <div class="stat-value">\${data.usage?.smsSent || 0}</div>
+        <div class="stat-value">${data.usage?.smsSent || 0}</div>
         <div class="stat-label">📱 SMS נשלחו</div>
       </div>
       
       <div class="stat-card">
-        <div class="stat-value">\${data.usage?.emailsSent || 0}</div>
+        <div class="stat-value">${data.usage?.emailsSent || 0}</div>
         <div class="stat-label">📧 אימיילים נשלחו</div>
       </div>
     </div>
     
     <div class="section">
-      <h2>🔑 רשיונות (\${licenseCount} סה"כ)</h2>
+      <h2>🔑 רשיונות (${licenseCount} סה"כ)</h2>
       <table>
         <thead>
           <tr>
@@ -1472,7 +1479,7 @@ app.get('/admin', async (req, res) => {
           </tr>
         </thead>
         <tbody>
-          \${licensesHtml || '<tr><td colspan="6" style="text-align:center;">אין רשיונות</td></tr>'}
+          ${licensesHtml || '<tr><td colspan="6" style="text-align:center;">אין רשיונות</td></tr>'}
         </tbody>
       </table>
     </div>
@@ -1489,12 +1496,12 @@ app.get('/admin', async (req, res) => {
     
     <div style="text-align: center; margin-top: 30px; color: #666;">
       <p>💛🖤 צהוב זה הצבע!</p>
-      <p style="margin-top: 10px;">Last update: \${new Date().toLocaleString('he-IL')}</p>
+      <p style="margin-top: 10px;">Last update: ${new Date().toLocaleString('he-IL')}</p>
     </div>
   </div>
 </body>
 </html>
-  \`);
+  `);
 });
 
 // Subscription page - collect user details before payment
