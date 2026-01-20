@@ -35,7 +35,10 @@ function loadData() {
       history: []
     },
     licenses: {},  // License management
-    apiKeys: {}
+    apiKeys: {},
+    subscribers: {},  // Email subscribers for server-side monitoring
+    lastTicketCheck: null,
+    lastKnownGames: []
   };
 }
 
@@ -801,6 +804,200 @@ app.post('/api/register', (req, res) => {
     isVip: isVipCoupon,
     message: responseMsg
   });
+});
+
+// Landing page - Subscribe for alerts
+app.get('/', (req, res) => {
+  const subscriberCount = Object.keys(data.subscribers || {}).filter(e => data.subscribers[e]?.active).length;
+  
+  res.send(`
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>התראות כרטיסים - בית"ר ירושלים 🎟️</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { 
+      font-family: 'Segoe UI', Arial, sans-serif; 
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      min-height: 100vh; 
+      color: #fff;
+      padding: 20px;
+    }
+    .container { max-width: 500px; margin: 0 auto; }
+    h1 { 
+      text-align: center; 
+      color: #ffd700; 
+      font-size: 2em; 
+      margin-bottom: 10px;
+    }
+    .subtitle { text-align: center; color: #aaa; margin-bottom: 30px; }
+    .badge {
+      text-align: center;
+      background: rgba(74,222,128,0.2);
+      color: #4ade80;
+      padding: 10px;
+      border-radius: 10px;
+      margin-bottom: 30px;
+    }
+    .card { 
+      background: rgba(255,255,255,0.05); 
+      border-radius: 20px; 
+      padding: 30px; 
+      border: 2px solid rgba(255,215,0,0.3);
+    }
+    .form-group { margin-bottom: 20px; }
+    label { display: block; margin-bottom: 8px; color: #ccc; }
+    input { 
+      width: 100%; 
+      padding: 15px; 
+      border: 2px solid rgba(255,215,0,0.3);
+      border-radius: 10px; 
+      background: rgba(0,0,0,0.3);
+      color: #fff;
+      font-size: 1.1em;
+      direction: ltr;
+    }
+    input:focus { outline: none; border-color: #ffd700; }
+    .btn { 
+      width: 100%;
+      padding: 18px; 
+      border: none;
+      border-radius: 30px; 
+      background: linear-gradient(135deg, #ffd700, #ffaa00);
+      color: #000;
+      font-size: 1.2em;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .btn:hover { transform: scale(1.02); }
+    .features { margin-top: 30px; }
+    .feature { 
+      display: flex; 
+      align-items: center; 
+      gap: 10px; 
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+    .feature:last-child { border-bottom: none; }
+    .success { 
+      background: rgba(74,222,128,0.2); 
+      color: #4ade80; 
+      padding: 20px; 
+      border-radius: 10px; 
+      text-align: center;
+      display: none;
+    }
+    .error { 
+      background: rgba(255,107,107,0.2); 
+      color: #ff6b6b; 
+      padding: 10px; 
+      border-radius: 8px; 
+      text-align: center;
+      display: none;
+      margin-top: 10px;
+    }
+    .stats { text-align: center; margin-top: 20px; color: #888; font-size: 0.9em; }
+    .footer { text-align: center; margin-top: 30px; color: #666; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎟️ התראות כרטיסים</h1>
+    <h2 style="text-align: center; color: #ffd700; margin-bottom: 20px;">בית"ר ירושלים</h2>
+    
+    <div class="badge">
+      🔄 בדיקה אוטומטית 24/7 - כל 5 דקות!
+    </div>
+    
+    <div class="card">
+      <form id="subscribeForm">
+        <div class="form-group">
+          <label>📧 אימייל</label>
+          <input type="email" name="email" placeholder="your@email.com" required>
+        </div>
+        
+        <div class="form-group">
+          <label>📱 טלפון (אופציונלי - ל-SMS בתשלום)</label>
+          <input type="tel" name="phone" placeholder="0501234567">
+        </div>
+        
+        <button type="submit" class="btn">🔔 הירשם להתראות - חינם!</button>
+        <div class="error" id="errorMsg"></div>
+      </form>
+      
+      <div class="success" id="successMsg">
+        ✅ נרשמת בהצלחה!<br>
+        תקבל אימייל ברגע שיהיו כרטיסים זמינים.
+      </div>
+      
+      <div class="features">
+        <div class="feature">✅ בדיקה אוטומטית כל 5 דקות</div>
+        <div class="feature">✅ התראה מיידית באימייל - חינם!</div>
+        <div class="feature">✅ עובד 24/7 - גם כשהמחשב סגור</div>
+        <div class="feature">✅ לינק ישיר לרכישה</div>
+      </div>
+    </div>
+    
+    <div class="stats">
+      👥 ${subscriberCount} אוהדים כבר נרשמו
+    </div>
+    
+    <div class="footer">
+      <p>💛🖤 צהוב זה הצבע!</p>
+      <p style="margin-top: 10px;">
+        <a href="/pricing" style="color: #ffd700;">מחירים</a> • 
+        <a href="/privacy" style="color: #888;">פרטיות</a>
+      </p>
+    </div>
+  </div>
+  
+  <script>
+    document.getElementById('subscribeForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const form = e.target;
+      const btn = form.querySelector('button');
+      const error = document.getElementById('errorMsg');
+      const success = document.getElementById('successMsg');
+      
+      btn.disabled = true;
+      btn.textContent = '⏳ נרשם...';
+      error.style.display = 'none';
+      
+      try {
+        const res = await fetch('/api/subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: form.email.value,
+            phone: form.phone.value || null
+          })
+        });
+        
+        const data = await res.json();
+        
+        if (data.success) {
+          form.style.display = 'none';
+          success.style.display = 'block';
+        } else {
+          error.textContent = data.error || 'שגיאה בהרשמה';
+          error.style.display = 'block';
+          btn.disabled = false;
+          btn.textContent = '🔔 הירשם להתראות - חינם!';
+        }
+      } catch (e) {
+        error.textContent = 'שגיאת תקשורת';
+        error.style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = '🔔 הירשם להתראות - חינם!';
+      }
+    });
+  </script>
+</body>
+</html>
+  `);
 });
 
 // Privacy Policy page (required for Chrome Web Store)
@@ -2138,8 +2335,278 @@ setTimeout(checkLicenseExpiry, 5000);
 setupEmailTransporter();
 setupTwilio();
 
+// ============================================
+// 🔄 SERVER-SIDE TICKET MONITORING (24/7)
+// ============================================
+
+const LEAAN_URL = 'https://www.leaan.co.il/he/org/%D7%91%D7%99%D7%AA%D7%A8-%D7%99%D7%A8%D7%95%D7%A9%D7%9C%D7%99%D7%9D';
+const CHECK_INTERVAL = 5 * 60 * 1000; // Check every 5 minutes
+
+// Parse tickets from leaan.co.il HTML
+function parseTicketsFromHtml(html) {
+  const games = [];
+  
+  // Look for event cards with tickets available
+  const eventPattern = /<a[^>]*href="([^"]*)"[^>]*class="[^"]*event-card[^"]*"[^>]*>[\s\S]*?<\/a>/gi;
+  const matches = html.matchAll(eventPattern);
+  
+  for (const match of matches) {
+    const cardHtml = match[0];
+    const url = match[1];
+    
+    // Extract event name
+    const nameMatch = cardHtml.match(/class="[^"]*event-name[^"]*"[^>]*>([^<]+)</i) ||
+                      cardHtml.match(/<h[23][^>]*>([^<]+)</i);
+    
+    // Extract price
+    const priceMatch = cardHtml.match(/(\d+)\s*₪/);
+    
+    // Check if tickets are available (not sold out)
+    const isSoldOut = /sold.?out|אזל|נמכר/i.test(cardHtml);
+    
+    if (nameMatch && !isSoldOut) {
+      games.push({
+        id: url || `game-${Date.now()}-${games.length}`,
+        name: nameMatch[1].trim(),
+        ticketPrice: priceMatch ? priceMatch[1] : null,
+        ticketUrl: url.startsWith('http') ? url : `https://www.leaan.co.il${url}`,
+        available: true
+      });
+    }
+  }
+  
+  // Fallback: look for any ticket links
+  if (games.length === 0) {
+    const ticketLinks = html.matchAll(/href="([^"]*ticket[^"]*)"[^>]*>([^<]*)/gi);
+    for (const match of ticketLinks) {
+      if (!/אזל|sold.?out/i.test(match[2])) {
+        games.push({
+          id: match[1],
+          name: match[2].trim() || 'משחק בית"ר ירושלים',
+          ticketUrl: match[1].startsWith('http') ? match[1] : `https://www.leaan.co.il${match[1]}`,
+          available: true
+        });
+      }
+    }
+  }
+  
+  return games;
+}
+
+// Check for new tickets and notify subscribers
+async function checkTicketsAndNotify() {
+  console.log('🔍 [Server Monitor] Checking for tickets...');
+  
+  try {
+    const response = await fetch(LEAAN_URL, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept': 'text/html,application/xhtml+xml',
+        'Accept-Language': 'he-IL,he;q=0.9,en;q=0.8'
+      }
+    });
+    
+    if (!response.ok) {
+      console.error(`❌ Failed to fetch leaan.co.il: ${response.status}`);
+      return;
+    }
+    
+    const html = await response.text();
+    const games = parseTicketsFromHtml(html);
+    
+    data.lastTicketCheck = new Date().toISOString();
+    
+    if (games.length > 0) {
+      console.log(`✅ Found ${games.length} games with tickets!`);
+      
+      // Check for NEW games (not seen before)
+      const lastKnownIds = new Set(data.lastKnownGames || []);
+      const newGames = games.filter(g => !lastKnownIds.has(g.id));
+      
+      if (newGames.length > 0) {
+        console.log(`🆕 ${newGames.length} NEW games found!`);
+        
+        // Notify all subscribers
+        await notifyAllSubscribers(newGames);
+      }
+      
+      // Update known games
+      data.lastKnownGames = games.map(g => g.id);
+      saveData();
+    } else {
+      console.log('😴 No tickets available currently');
+      data.lastKnownGames = [];
+      saveData();
+    }
+    
+  } catch (error) {
+    console.error('❌ Error checking tickets:', error.message);
+  }
+}
+
+// Notify all registered subscribers
+async function notifyAllSubscribers(games) {
+  const subscribers = data.subscribers || {};
+  const subscriberCount = Object.keys(subscribers).length;
+  
+  if (subscriberCount === 0) {
+    console.log('📭 No subscribers to notify');
+    return;
+  }
+  
+  console.log(`📧 Notifying ${subscriberCount} subscribers...`);
+  
+  for (const [email, subscriber] of Object.entries(subscribers)) {
+    if (!subscriber.active) continue;
+    
+    try {
+      // Send email (free for all)
+      const emailHtml = `
+        <!DOCTYPE html>
+        <html dir="rtl" lang="he">
+        <head><meta charset="UTF-8"></head>
+        <body style="font-family: Arial; background: #111; color: #fff; padding: 20px;">
+          <div style="max-width: 500px; margin: 0 auto; background: #1a1a1a; border-radius: 15px; padding: 30px; border: 2px solid #ffd700;">
+            <h1 style="color: #ffd700; text-align: center;">🎟️ כרטיסים זמינים!</h1>
+            <p style="text-align: center; color: #ccc;">נמצאו כרטיסים למשחקי בית"ר ירושלים!</p>
+            
+            ${games.map(g => `
+              <div style="background: #222; padding: 15px; border-radius: 10px; margin: 10px 0; border-right: 3px solid #ffd700;">
+                <div style="color: #fff; font-weight: bold;">${g.name}</div>
+                ${g.ticketPrice ? `<div style="color: #ffd700;">מחיר: ${g.ticketPrice}₪</div>` : ''}
+                <a href="${g.ticketUrl}" style="display: inline-block; margin-top: 10px; background: #ffd700; color: #000; padding: 8px 16px; text-decoration: none; border-radius: 20px; font-weight: bold;">לרכישה</a>
+              </div>
+            `).join('')}
+            
+            <p style="text-align: center; margin-top: 30px; color: #888;">
+              💛🖤 צהוב זה הצבע!<br>
+              <a href="https://server-tickets-l0rq.onrender.com/unsubscribe?email=${encodeURIComponent(email)}" style="color: #666; font-size: 12px;">להסרה מהרשימה</a>
+            </p>
+          </div>
+        </body>
+        </html>
+      `;
+      
+      await sendEmail(email, '🎟️ כרטיסים זמינים לבית"ר ירושלים!', emailHtml);
+      console.log(`  ✅ Email sent to ${email}`);
+      
+      // Send SMS if subscriber has phone AND license
+      if (subscriber.phone && subscriber.licenseKey) {
+        const license = data.licenses[subscriber.licenseKey];
+        if (license && license.active && license.smsRemaining > 0) {
+          const smsText = `בית"ר: כרטיסים זמינים! ${games[0].name} - ${games[0].ticketUrl}`;
+          await sendSMS(subscriber.phone, smsText);
+          
+          // Decrease SMS count
+          data.licenses[subscriber.licenseKey].smsRemaining--;
+          saveData();
+          console.log(`  ✅ SMS sent to ${subscriber.phone}`);
+        }
+      }
+      
+    } catch (error) {
+      console.error(`  ❌ Failed to notify ${email}:`, error.message);
+    }
+  }
+}
+
+// Subscribe endpoint - register for email notifications
+app.post('/api/subscribe', async (req, res) => {
+  const { email, phone, licenseKey } = req.body;
+  
+  if (!email || !email.includes('@')) {
+    return res.status(400).json({ error: 'אימייל לא תקין' });
+  }
+  
+  // Format phone if provided
+  let formattedPhone = null;
+  if (phone) {
+    formattedPhone = phone.replace(/\D/g, '');
+    if (formattedPhone.startsWith('0')) {
+      formattedPhone = '+972' + formattedPhone.substring(1);
+    } else if (!formattedPhone.startsWith('+')) {
+      formattedPhone = '+972' + formattedPhone;
+    }
+  }
+  
+  // Add/update subscriber
+  if (!data.subscribers) data.subscribers = {};
+  
+  data.subscribers[email.toLowerCase()] = {
+    email: email.toLowerCase(),
+    phone: formattedPhone,
+    licenseKey: licenseKey || null,
+    active: true,
+    subscribedAt: new Date().toISOString()
+  };
+  
+  saveData();
+  
+  console.log(`✅ New subscriber: ${email}`);
+  
+  // Send confirmation email
+  const confirmHtml = `
+    <div dir="rtl" style="font-family: Arial; padding: 20px;">
+      <h1 style="color: #ffd700;">🎟️ נרשמת בהצלחה!</h1>
+      <p>תקבל התראה באימייל ברגע שיהיו כרטיסים זמינים למשחקי בית"ר ירושלים.</p>
+      <p>הבדיקה מתבצעת אוטומטית כל 5 דקות, 24/7!</p>
+      <p style="color: #888;">💛🖤 צהוב זה הצבע!</p>
+    </div>
+  `;
+  
+  await sendEmail(email, '✅ נרשמת להתראות כרטיסים - בית"ר ירושלים', confirmHtml);
+  
+  res.json({ 
+    success: true, 
+    message: 'נרשמת בהצלחה! תקבל התראה כשיהיו כרטיסים.' 
+  });
+});
+
+// Unsubscribe endpoint
+app.get('/unsubscribe', (req, res) => {
+  const { email } = req.query;
+  
+  if (email && data.subscribers && data.subscribers[email.toLowerCase()]) {
+    data.subscribers[email.toLowerCase()].active = false;
+    saveData();
+  }
+  
+  res.send(`
+    <!DOCTYPE html>
+    <html dir="rtl" lang="he">
+    <head><meta charset="UTF-8"><title>הסרה מהרשימה</title></head>
+    <body style="font-family: Arial; text-align: center; padding: 50px; background: #1a1a2e; color: #fff;">
+      <h1>✅ הוסרת מרשימת התפוצה</h1>
+      <p>לא תקבל יותר התראות על כרטיסים.</p>
+      <p style="margin-top: 30px;">💛🖤 להתראות!</p>
+    </body>
+    </html>
+  `);
+});
+
+// Get monitoring status
+app.get('/api/monitor/status', (req, res) => {
+  res.json({
+    lastCheck: data.lastTicketCheck,
+    subscriberCount: Object.keys(data.subscribers || {}).filter(e => data.subscribers[e].active).length,
+    lastKnownGames: data.lastKnownGames?.length || 0,
+    nextCheck: 'Every 5 minutes'
+  });
+});
+
+// Start the ticket monitoring interval
+setInterval(checkTicketsAndNotify, CHECK_INTERVAL);
+
+// Run first check after 10 seconds (let server start first)
+setTimeout(checkTicketsAndNotify, 10000);
+
+console.log('🔄 Server-side ticket monitoring enabled (every 5 minutes)');
+
+// ============================================
+
 const licenseCount = Object.keys(data.licenses).length;
 const activeLicenses = Object.values(data.licenses).filter(l => l.active).length;
+const subscriberCount = Object.keys(data.subscribers || {}).length;
 
 app.listen(PORT, () => {
   console.log(`
@@ -2149,17 +2616,17 @@ app.listen(PORT, () => {
 ║  Server running on http://localhost:${PORT}                 ║
 ║  Dashboard: http://localhost:${PORT}/                       ║
 ║                                                         ║
-║  API Endpoints:                                         ║
-║  • GET  /api/health           - Server status           ║
-║  • GET  /api/license/validate - Check license           ║
-║  • POST /api/notify           - Send notifications      ║
+║  🔄 MONITORING ACTIVE - Checking every 5 minutes!       ║
 ║                                                         ║
-║  Admin Endpoints (require password):                    ║
-║  • GET/POST /api/admin/licenses - Manage licenses       ║
-║  • GET /api/admin/stats         - Usage statistics      ║
+║  API Endpoints:                                         ║
+║  • POST /api/subscribe        - Subscribe to alerts     ║
+║  • GET  /api/monitor/status   - Monitoring status       ║
+║  • POST /api/notify           - Send notifications      ║
 ║                                                         ║
 ║  📊 Usage: ${String(data.usage.emailsSent).padEnd(3)} emails, ${String(data.usage.smsSent).padEnd(3)} SMS sent                ║
 ║  🔑 Licenses: ${String(activeLicenses).padEnd(2)}/${String(licenseCount).padEnd(2)} active                            ║
+║  👥 Subscribers: ${String(subscriberCount).padEnd(3)}                                    ║
 ╚═════════════════════════════════════════════════════════╝
   `);
 });
+
