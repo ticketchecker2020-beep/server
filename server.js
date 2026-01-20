@@ -428,11 +428,14 @@ async function getTwilioBalance() {
     const accountSid = process.env.TWILIO_ACCOUNT_SID;
     const balance = await twilioClient.balance.fetch();
     
+    const SMS_COST = 0.75; // ~$0.75 per SMS to Israel (based on actual usage)
+    
     return {
       balance: parseFloat(balance.balance),
       currency: balance.currency,
       accountSid: accountSid.substring(0, 8) + '...',
-      estimatedSmsRemaining: Math.floor(parseFloat(balance.balance) / 0.09), // ~$0.09 per SMS to Israel
+      smsCost: SMS_COST,
+      estimatedSmsRemaining: Math.floor(parseFloat(balance.balance) / SMS_COST),
       lowBalance: parseFloat(balance.balance) < 5 // Alert if less than $5
     };
   } catch (error) {
