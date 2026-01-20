@@ -1281,6 +1281,222 @@ app.get('/pricing', (req, res) => {
   `);
 });
 
+// Admin Dashboard
+app.get('/admin', async (req, res) => {
+  const adminPassword = req.query.p || req.query.password;
+  
+  if (adminPassword !== process.env.ADMIN_PASSWORD && adminPassword !== 'BeitarAdmin123!') {
+    return res.send(`
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Login</title>
+  <style>
+    body { font-family: Arial; background: #1a1a2e; color: #fff; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+    .login { background: rgba(255,255,255,0.05); padding: 40px; border-radius: 20px; text-align: center; }
+    input { padding: 15px; font-size: 1.1em; border-radius: 10px; border: 2px solid #ffd700; background: #222; color: #fff; margin: 10px 0; }
+    button { padding: 15px 30px; font-size: 1.1em; border: none; border-radius: 10px; background: #ffd700; color: #000; cursor: pointer; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <div class="login">
+    <h2>🔐 Admin Login</h2>
+    <form method="GET">
+      <input type="password" name="p" placeholder="סיסמה" required><br>
+      <button type="submit">כניסה</button>
+    </form>
+  </div>
+</body>
+</html>
+    `);
+  }
+  
+  // Get stats
+  const licenseCount = Object.keys(data.licenses).length;
+  const activeLicenses = Object.values(data.licenses).filter(l => l.active && new Date(l.expiresAt) > new Date()).length;
+  const subscriberCount = Object.keys(data.subscribers || {}).filter(e => data.subscribers[e]?.active).length;
+  const twilioBalance = await getTwilioBalance();
+  
+  // License list HTML
+  const licensesHtml = Object.entries(data.licenses).slice(0, 50).map(([key, lic]) => {
+    const isExpired = new Date(lic.expiresAt) < new Date();
+    const statusClass = isExpired ? 'expired' : (lic.active ? 'active' : 'inactive');
+    const statusText = isExpired ? '⏰ פג תוקף' : (lic.active ? '✅ פעיל' : '❌ לא פעיל');
+    return \`
+      <tr class="\${statusClass}">
+        <td style="font-family: monospace; font-size: 0.85em;">\${key}</td>
+        <td>\${lic.userEmail || '-'}</td>
+        <td>\${lic.plan || 'free'}</td>
+        <td>\${lic.smsRemaining || 0}</td>
+        <td>\${statusText}</td>
+        <td>\${new Date(lic.expiresAt).toLocaleDateString('he-IL')}</td>
+      </tr>
+    \`;
+  }).join('');
+  
+  res.send(\`
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🎟️ Admin Dashboard</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { 
+      font-family: 'Segoe UI', Arial, sans-serif; 
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      min-height: 100vh; 
+      color: #fff;
+      padding: 20px;
+    }
+    .container { max-width: 1200px; margin: 0 auto; }
+    h1 { color: #ffd700; text-align: center; margin-bottom: 30px; }
+    
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+    .stat-card {
+      background: rgba(255,255,255,0.05);
+      border-radius: 15px;
+      padding: 25px;
+      text-align: center;
+      border: 2px solid rgba(255,215,0,0.2);
+    }
+    .stat-value {
+      font-size: 2.5em;
+      font-weight: bold;
+      color: #ffd700;
+    }
+    .stat-label { color: #aaa; margin-top: 5px; }
+    
+    .balance-card {
+      background: \${twilioBalance.lowBalance ? 'rgba(255,107,107,0.2)' : 'rgba(74,222,128,0.2)'};
+      border-color: \${twilioBalance.lowBalance ? '#ff6b6b' : '#4ade80'};
+    }
+    .balance-card .stat-value {
+      color: \${twilioBalance.lowBalance ? '#ff6b6b' : '#4ade80'};
+    }
+    
+    .section {
+      background: rgba(255,255,255,0.05);
+      border-radius: 15px;
+      padding: 25px;
+      margin-bottom: 20px;
+    }
+    .section h2 { color: #ffd700; margin-bottom: 20px; }
+    
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 12px; text-align: right; border-bottom: 1px solid rgba(255,255,255,0.1); }
+    th { color: #ffd700; background: rgba(0,0,0,0.2); }
+    tr:hover { background: rgba(255,215,0,0.05); }
+    tr.expired { opacity: 0.5; }
+    tr.active { }
+    
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: bold;
+      margin: 5px;
+    }
+    .btn-primary { background: #ffd700; color: #000; }
+    .btn-danger { background: #ff6b6b; color: #fff; }
+    .btn-success { background: #4ade80; color: #000; }
+    
+    .alert {
+      padding: 15px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    .alert-warning { background: rgba(255,107,107,0.2); color: #ff6b6b; }
+    .alert-success { background: rgba(74,222,128,0.2); color: #4ade80; }
+    
+    .quick-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎟️ Admin Dashboard - בית"ר ירושלים</h1>
+    
+    \${twilioBalance.lowBalance ? '<div class="alert alert-warning">⚠️ יתרת Twilio נמוכה! טען יתרה בהקדם.</div>' : ''}
+    
+    <div class="stats-grid">
+      <div class="stat-card balance-card">
+        <div class="stat-value">$\${twilioBalance.balance?.toFixed(2) || '?'}</div>
+        <div class="stat-label">💰 יתרת Twilio</div>
+        <div style="margin-top: 10px; font-size: 0.9em; color: #888;">
+          ~\${twilioBalance.estimatedSmsRemaining || '?'} SMS נותרו
+        </div>
+      </div>
+      
+      <div class="stat-card">
+        <div class="stat-value">\${activeLicenses}</div>
+        <div class="stat-label">🔑 רשיונות פעילים</div>
+      </div>
+      
+      <div class="stat-card">
+        <div class="stat-value">\${subscriberCount}</div>
+        <div class="stat-label">📧 מנויי אימייל</div>
+      </div>
+      
+      <div class="stat-card">
+        <div class="stat-value">\${data.usage?.smsSent || 0}</div>
+        <div class="stat-label">📱 SMS נשלחו</div>
+      </div>
+      
+      <div class="stat-card">
+        <div class="stat-value">\${data.usage?.emailsSent || 0}</div>
+        <div class="stat-label">📧 אימיילים נשלחו</div>
+      </div>
+    </div>
+    
+    <div class="section">
+      <h2>🔑 רשיונות (\${licenseCount} סה"כ)</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>מפתח</th>
+            <th>אימייל</th>
+            <th>תוכנית</th>
+            <th>SMS נותרו</th>
+            <th>סטטוס</th>
+            <th>תפוגה</th>
+          </tr>
+        </thead>
+        <tbody>
+          \${licensesHtml || '<tr><td colspan="6" style="text-align:center;">אין רשיונות</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+    
+    <div class="section">
+      <h2>⚡ פעולות מהירות</h2>
+      <div class="quick-actions">
+        <a href="https://console.twilio.com/us1/billing" target="_blank" class="btn btn-primary">💳 טען יתרת Twilio</a>
+        <a href="/api/monitor/status" target="_blank" class="btn btn-success">📊 סטטוס מוניטורינג</a>
+        <a href="/" class="btn btn-primary">🏠 דף הבית</a>
+        <a href="/pricing" class="btn btn-primary">💰 דף מחירים</a>
+      </div>
+    </div>
+    
+    <div style="text-align: center; margin-top: 30px; color: #666;">
+      <p>💛🖤 צהוב זה הצבע!</p>
+      <p style="margin-top: 10px;">Last update: \${new Date().toLocaleString('he-IL')}</p>
+    </div>
+  </div>
+</body>
+</html>
+  \`);
+});
+
 // Subscription page - collect user details before payment
 app.get('/subscribe', (req, res) => {
   const plan = req.query.plan || 'monthly';
