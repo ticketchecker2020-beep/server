@@ -2625,63 +2625,66 @@ setupTwilio();
 // 🔄 SERVER-SIDE TICKET MONITORING (24/7)
 // ============================================
 
-const LEAAN_URL = 'https://www.leaan.co.il/he/org/%D7%91%D7%99%D7%AA%D7%A8-%D7%99%D7%A8%D7%95%D7%A9%D7%9C%D7%99%D7%9D';
+const LEAAN_URL = 'https://www.leaan.co.il/category/%D7%A1%D7%A4%D7%95%D7%A8%D7%98';
 const CHECK_INTERVAL = 5 * 60 * 1000; // Check every 5 minutes
 
-// Parse tickets from leaan.co.il HTML
+// Parse tickets from leaan.co.il HTML - looking for Beitar Jerusalem games
 function parseTicketsFromHtml(html) {
   const games = [];
   
-  // Look for event cards with tickets available
-  const eventPattern = /<a[^>]*href="([^"]*)"[^>]*class="[^"]*event-card[^"]*"[^>]*>[\s\S]*?<\/a>/gi;
-  const matches = html.matchAll(eventPattern);
+  // Look for Beitar Jerusalem games specifically
+  // The HTML shows games like "בית"ר ירושלים - הפועל חיפה"
+  const beitarPattern = /בית["\u0022\u05F4]ר\s*ירושלים/gi;
   
-  for (const match of matches) {
-    const cardHtml = match[0];
-    const url = match[1];
-    
-    // Extract event name
-    const nameMatch = cardHtml.match(/class="[^"]*event-name[^"]*"[^>]*>([^<]+)</i) ||
-                      cardHtml.match(/<h[23][^>]*>([^<]+)</i);
-    
-    // Extract price
-    const priceMatch = cardHtml.match(/(\d+)\s*₪/);
-    
-    // Check if tickets are available (not sold out)
-    const isSoldOut = /sold.?out|אזל|נמכר/i.test(cardHtml);
-    
-    if (nameMatch && !isSoldOut) {
+  // Find all game sections
+  const gameSections = html.split(/####|<\/article>|<\/div>\s*<div[^>]*class="[^"]*game/i);
+  
+  for (const section of gameSections) {
+    // Check if this section mentions Beitar Jerusalem
+    if (beitarPattern.test(section)) {
+      // Reset the regex
+      beitarPattern.lastIndex = 0;
+      
+      // Check if NOT sold out
+      const isSoldOut = /SOLD\s*OUT|אזל|נמכר/i.test(section);
+      
+      // Extract game name
+      const nameMatch = section.match(/בית["\u0022\u05F4]ר\s*ירושלים\s*[-–]\s*([^\n<]+)/i) ||
+                        section.match(/([^\n<]+)\s*[-–]\s*בית["\u0022\u05F4]ר\s*ירושלים/i);
+      
+      // Extract link
+      const linkMatch = section.match(/href="([^"]*beitar[^"]*|[^"]*%D7%91%D7%99%D7%AA%D7%A8[^"]*)"/i) ||
+                        section.match(/לפרטים נוספים[^<]*<.*?href="([^"]+)"/i);
+      
+      const gameName = nameMatch ? nameMatch[0].trim() : 'משחק בית"ר ירושלים';
+      const gameUrl = linkMatch ? linkMatch[1] : null;
+      
       games.push({
-        id: url || `game-${Date.now()}-${games.length}`,
-        name: nameMatch[1].trim(),
-        ticketPrice: priceMatch ? priceMatch[1] : null,
-        ticketUrl: url.startsWith('http') ? url : `https://www.leaan.co.il${url}`,
-        available: true
+        id: gameUrl || `beitar-${Date.now()}-${games.length}`,
+        name: gameName.replace(/<[^>]+>/g, '').trim(),
+        ticketUrl: gameUrl ? (gameUrl.startsWith('http') ? gameUrl : `https://www.leaan.co.il${gameUrl}`) : 'https://www.leaan.co.il/category/%D7%A1%D7%A4%D7%95%D7%A8%D7%98',
+        available: !isSoldOut,
+        soldOut: isSoldOut
       });
     }
   }
   
-  // Fallback: look for any ticket links
-  if (games.length === 0) {
-    const ticketLinks = html.matchAll(/href="([^"]*ticket[^"]*)"[^>]*>([^<]*)/gi);
-    for (const match of ticketLinks) {
-      if (!/אזל|sold.?out/i.test(match[2])) {
-        games.push({
-          id: match[1],
-          name: match[2].trim() || 'משחק בית"ר ירושלים',
-          ticketUrl: match[1].startsWith('http') ? match[1] : `https://www.leaan.co.il${match[1]}`,
-          available: true
-        });
-      }
+  // Deduplicate by name
+  const uniqueGames = [];
+  const seenNames = new Set();
+  for (const game of games) {
+    if (!seenNames.has(game.name)) {
+      seenNames.add(game.name);
+      uniqueGames.push(game);
     }
   }
   
-  return games;
+  return uniqueGames;
 }
 
 // Check for new tickets and notify subscribers
 async function checkTicketsAndNotify() {
-  console.log('🔍 [Server Monitor] Checking for tickets...');
+  console.log('🔍 [Server Monitor] Checking for Beitar Jerusalem tickets...');
   
   try {
     const response = await fetch(LEAAN_URL, {
@@ -2698,29 +2701,35 @@ async function checkTicketsAndNotify() {
     }
     
     const html = await response.text();
-    const games = parseTicketsFromHtml(html);
+    const allGames = parseTicketsFromHtml(html);
+    
+    // Filter only AVAILABLE games (not sold out)
+    const availableGames = allGames.filter(g => g.available && !g.soldOut);
     
     data.lastTicketCheck = new Date().toISOString();
     
-    if (games.length > 0) {
-      console.log(`✅ Found ${games.length} games with tickets!`);
-      
+    console.log(`📊 Found ${allGames.length} Beitar games total, ${availableGames.length} with tickets available`);
+    
+    if (availableGames.length > 0) {
       // Check for NEW games (not seen before)
       const lastKnownIds = new Set(data.lastKnownGames || []);
-      const newGames = games.filter(g => !lastKnownIds.has(g.id));
+      const newGames = availableGames.filter(g => !lastKnownIds.has(g.id));
       
       if (newGames.length > 0) {
-        console.log(`🆕 ${newGames.length} NEW games found!`);
+        console.log(`🆕 ${newGames.length} NEW available games found!`);
+        newGames.forEach(g => console.log(`   - ${g.name}`));
         
         // Notify all subscribers
         await notifyAllSubscribers(newGames);
+      } else {
+        console.log('😴 No NEW tickets (already notified about these games)');
       }
       
       // Update known games
-      data.lastKnownGames = games.map(g => g.id);
+      data.lastKnownGames = availableGames.map(g => g.id);
       saveData();
     } else {
-      console.log('😴 No tickets available currently');
+      console.log('😴 No tickets available for Beitar Jerusalem games');
       data.lastKnownGames = [];
       saveData();
     }
