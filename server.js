@@ -1936,10 +1936,10 @@ app.get('/admin', async (req, res) => {
     
     <div class="stats-grid">
       <div class="stat-card balance-card">
-        <div class="stat-value">${smsBalance.balance !== null ? smsBalance.balance.toFixed(0) + '₪' : '?'}</div>
-        <div class="stat-label">💰 יתרת 019SMS</div>
+        <div class="stat-value">${smsBalance.estimatedSmsRemaining !== null ? '~' + smsBalance.estimatedSmsRemaining : '?'}</div>
+        <div class="stat-label">💰 SMS נותרו</div>
         <div style="margin-top: 10px; font-size: 0.9em; color: #888;">
-          ~${smsBalance.estimatedSmsRemaining || '?'} SMS נותרו
+          יתרה: ${smsBalance.balance !== null ? smsBalance.balance : '?'}
         </div>
       </div>
       
