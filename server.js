@@ -1599,6 +1599,7 @@ app.get('/admin', async (req, res) => {
   const subscribersHtml = Object.entries(data.subscribers || {}).slice(0, 50).map(([key, sub]) => {
     const emailCount = (sub.emails || []).length;
     const primaryEmail = sub.emails?.[0] || key;
+    const escapedKey = key.replace(/'/g, "\\'");
     return `
       <tr class="${sub.active ? 'active' : 'inactive'}">
         <td>${primaryEmail}</td>
@@ -1607,6 +1608,10 @@ app.get('/admin', async (req, res) => {
         <td>${sub.smsEnabled ? '✅ כן' : '❌ לא'}</td>
         <td>${sub.active ? '✅ פעיל' : '❌ לא פעיל'}</td>
         <td>${new Date(sub.registeredAt).toLocaleDateString('he-IL')}</td>
+        <td>
+          <button class="btn btn-danger" style="padding: 5px 10px; font-size: 0.8em;" 
+                  onclick="deleteSubscriber('${escapedKey}')">🗑️ מחק</button>
+        </td>
       </tr>
     `;
   }).join('');
@@ -1796,10 +1801,11 @@ app.get('/admin', async (req, res) => {
             <th>SMS</th>
             <th>סטטוס</th>
             <th>הרשמה</th>
+            <th>פעולה</th>
           </tr>
         </thead>
         <tbody>
-          ${subscribersHtml || '<tr><td colspan="6" style="text-align:center;">אין מנויים</td></tr>'}
+          ${subscribersHtml || '<tr><td colspan="7" style="text-align:center;">אין מנויים</td></tr>'}
         </tbody>
       </table>
     </div>
@@ -1923,6 +1929,25 @@ app.get('/admin', async (req, res) => {
         }
       } catch (e) {
         alert('שגיאה בשינוי סטטוס קופון');
+      }
+    }
+    
+    async function deleteSubscriber(email) {
+      if (!confirm('למחוק את המנוי ' + email + '?')) return;
+      try {
+        const res = await fetch('/api/admin/subscriber/delete?p=${adminPassword}', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email })
+        });
+        const data = await res.json();
+        if (data.success) {
+          location.reload();
+        } else {
+          alert('שגיאה: ' + data.error);
+        }
+      } catch (e) {
+        alert('שגיאה במחיקת מנוי');
       }
     }
   </script>
@@ -2791,6 +2816,31 @@ app.post('/api/admin/coupon/toggle', (req, res) => {
     success: true, 
     message: `קופון ${code} ${active ? 'הופעל' : 'נוטרל'} בהצלחה`,
     coupon: COUPONS[code.toUpperCase()]
+  });
+});
+
+// Delete subscriber (admin only)
+app.post('/api/admin/subscriber/delete', async (req, res) => {
+  const adminPass = req.query.p || req.query.password || req.headers['x-admin-password'];
+  if (adminPass !== process.env.ADMIN_PASSWORD && adminPass !== 'BeitarAdmin123!') {
+    return res.status(401).json({ error: 'Invalid admin password' });
+  }
+  
+  const { email } = req.body;
+  const subscriberId = email?.toLowerCase();
+  
+  if (!subscriberId || !data.subscribers[subscriberId]) {
+    return res.status(404).json({ error: 'מנוי לא נמצא' });
+  }
+  
+  delete data.subscribers[subscriberId];
+  await saveData();
+  
+  console.log(`🗑️ Subscriber ${subscriberId} deleted by admin`);
+  
+  res.json({ 
+    success: true, 
+    message: `מנוי ${subscriberId} נמחק בהצלחה`
   });
 });
 
