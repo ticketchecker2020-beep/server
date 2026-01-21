@@ -564,15 +564,15 @@ async function get019SMSBalance() {
     
     if (statusMatch && statusMatch[1] === '0' && balanceMatch) {
       const balance = parseFloat(balanceMatch[1]);
-      // 50₪ per 1000 SMS = 0.05₪ per SMS
-      const estimatedSmsRemaining = Math.floor(balance / 0.05);
+      // Balance is already in SMS units (number of messages remaining)
+      const estimatedSmsRemaining = Math.floor(balance);
       
       return {
         balance: balance,
         estimatedSmsRemaining: estimatedSmsRemaining,
-        currency: 'ILS',
+        currency: 'SMS',
         configured: true,
-        lowBalance: balance < 10, // Less than 10₪ = low balance
+        lowBalance: balance < 100, // Less than 100 SMS = low balance
         message: messageMatch ? messageMatch[1] : null
       };
     } else {
