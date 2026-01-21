@@ -307,7 +307,7 @@ setInterval(checkLicenseExpiry, 6 * 60 * 60 * 1000);
 // API Key authentication middleware
 function authenticateApiKey(req, res, next) {
   // Skip auth for public endpoints and admin (admin has its own password check)
-  const publicPaths = ['/health', '/pricing', '/register', '/coupon/validate', '/license/validate', '/admin', '/create-pending-order', '/webhook', '/add-game', '/remove-game', '/games'];
+  const publicPaths = ['/health', '/pricing', '/register', '/coupon/validate', '/license/validate', '/admin', '/create-pending-order', '/webhook', '/add-game', '/remove-game', '/games', '/api/test-email', '/api/test-sms', '/api/admin'];
   if (publicPaths.some(p => req.path === p || req.path.startsWith(p))) {
     return next();
   }
@@ -1043,6 +1043,12 @@ app.post('/api/notify', async (req, res) => {
 
 // Test email endpoint
 app.post('/api/test-email', async (req, res) => {
+  // Check admin password
+  const adminPassword = req.headers['x-admin-password'] || req.query.p;
+  if (adminPassword !== (process.env.ADMIN_PASSWORD || 'BeitarAdmin123!')) {
+    return res.status(401).json({ error: 'Admin authentication required' });
+  }
+  
   const { email, emails } = req.body;
   
   // Support both single email and array of emails
@@ -1084,6 +1090,12 @@ app.post('/api/test-email', async (req, res) => {
 
 // Test SMS endpoint
 app.post('/api/test-sms', async (req, res) => {
+  // Check admin password
+  const adminPassword = req.headers['x-admin-password'] || req.query.p;
+  if (adminPassword !== (process.env.ADMIN_PASSWORD || 'BeitarAdmin123!')) {
+    return res.status(401).json({ error: 'Admin authentication required' });
+  }
+  
   const { phone } = req.body;
   
   if (!phone) {
