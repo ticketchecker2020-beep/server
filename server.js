@@ -521,7 +521,7 @@ function get019SMSStatus() {
     configured: configured,
     username: configured ? process.env.SMS019_USERNAME : null,
     sender: process.env.SMS019_SENDER || 'TicketAlert',
-    smsCost: 0.04, // ~0.04₪ per SMS
+    smsCost: 0.05, // 50₪ per 1000 SMS = 0.05₪ per SMS
     currency: 'ILS',
     note: configured ? 'לבדיקת יתרה - היכנס לדשבורד של 019SMS' : 'SMS לא מוגדר'
   };
@@ -564,8 +564,8 @@ async function get019SMSBalance() {
     
     if (statusMatch && statusMatch[1] === '0' && balanceMatch) {
       const balance = parseFloat(balanceMatch[1]);
-      // Assuming ~0.04₪ per SMS
-      const estimatedSmsRemaining = Math.floor(balance / 0.04);
+      // 50₪ per 1000 SMS = 0.05₪ per SMS
+      const estimatedSmsRemaining = Math.floor(balance / 0.05);
       
       return {
         balance: balance,
