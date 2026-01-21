@@ -1,798 +1,863 @@
 <!DOCTYPE html>
-<html lang="he" dir="rtl">
+<html dir="rtl" lang="he">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Beitar Ticket Monitor - Admin Dashboard</title>
+  <title>🎟️ Admin Dashboard - בית"ר ירושלים</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    
-    body {
-      font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
-      background: #000;
+    body { 
+      font-family: 'Segoe UI', Arial, sans-serif; 
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      min-height: 100vh; 
       color: #fff;
-      min-height: 100vh;
       padding: 20px;
     }
+    .container { max-width: 1400px; margin: 0 auto; }
     
-    .container {
-      max-width: 1000px;
-      margin: 0 auto;
+    h1 { text-align: center; color: #ffd700; font-size: 2em; margin-bottom: 10px; }
+    h2 { color: #ffd700; margin: 20px 0 15px 0; font-size: 1.3em; border-bottom: 2px solid #ffd700; padding-bottom: 10px; }
+    
+    /* Stats Cards */
+    .stats-grid { 
+      display: grid; 
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); 
+      gap: 15px; 
+      margin-bottom: 30px; 
     }
-    
-    header {
+    .stat-card { 
+      background: rgba(255,255,255,0.05); 
+      border-radius: 15px; 
+      padding: 20px; 
       text-align: center;
-      padding: 30px;
-      background: linear-gradient(135deg, #ffd700 0%, #ffcc00 50%, #ffd700 100%);
-      border-radius: 16px;
-      margin-bottom: 24px;
-      box-shadow: 0 4px 30px rgba(255, 215, 0, 0.3);
+      border: 2px solid rgba(255,215,0,0.2);
+      transition: transform 0.2s;
+    }
+    .stat-card:hover { transform: translateY(-3px); }
+    .stat-card.success { border-color: #4ade80; background: rgba(74,222,128,0.1); }
+    .stat-card.warning { border-color: #fbbf24; background: rgba(251,191,36,0.1); }
+    .stat-card.danger { border-color: #ff6b6b; background: rgba(255,107,107,0.1); }
+    .stat-card.info { border-color: #60a5fa; background: rgba(96,165,250,0.1); }
+    .stat-value { font-size: 2.5em; font-weight: bold; color: #ffd700; }
+    .stat-label { color: #aaa; margin-top: 5px; font-size: 0.9em; }
+    
+    /* Alert */
+    .alert { padding: 15px; border-radius: 10px; margin-bottom: 20px; text-align: center; }
+    .alert-warning { background: rgba(251,191,36,0.2); border: 1px solid #fbbf24; color: #fbbf24; }
+    .alert-success { background: rgba(74,222,128,0.2); border: 1px solid #4ade80; color: #4ade80; }
+    
+    /* Sections */
+    .section { 
+      background: rgba(255,255,255,0.03); 
+      border-radius: 15px; 
+      padding: 20px; 
+      margin-bottom: 25px;
+      border: 1px solid rgba(255,215,0,0.1);
     }
     
-    header h1 {
-      color: #000;
-      font-size: 28px;
-      margin-bottom: 8px;
-    }
+    /* Tables */
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { padding: 12px 10px; text-align: right; border-bottom: 1px solid rgba(255,255,255,0.1); }
+    th { background: rgba(255,215,0,0.1); color: #ffd700; font-weight: 600; }
+    tr:hover { background: rgba(255,255,255,0.05); }
+    tr.active { background: rgba(74,222,128,0.1); }
+    tr.expired { background: rgba(255,107,107,0.1); opacity: 0.7; }
     
-    header p {
-      color: #333;
-      font-size: 14px;
+    /* Buttons */
+    .btn { 
+      padding: 8px 16px; 
+      border: none; 
+      border-radius: 8px; 
+      cursor: pointer; 
+      font-weight: 600;
+      transition: all 0.2s;
+      font-size: 0.85em;
     }
+    .btn-primary { background: #ffd700; color: #000; }
+    .btn-primary:hover { background: #ffaa00; }
+    .btn-danger { background: #ff6b6b; color: #fff; }
+    .btn-danger:hover { background: #ff4444; }
+    .btn-success { background: #4ade80; color: #000; }
+    .btn-success:hover { background: #22c55e; }
+    .btn-info { background: #60a5fa; color: #000; }
+    .btn-info:hover { background: #3b82f6; }
+    .btn-sm { padding: 5px 10px; font-size: 0.8em; }
     
-    .login-form {
-      background: #111;
-      padding: 30px;
-      border-radius: 12px;
-      border: 2px solid #333;
-      max-width: 400px;
-      margin: 50px auto;
+    /* Test Section */
+    .test-section { 
+      display: flex; 
+      gap: 20px; 
+      flex-wrap: wrap; 
+      margin-top: 15px;
     }
-    
-    .login-form h2 {
-      color: #ffd700;
-      margin-bottom: 20px;
-      text-align: center;
+    .test-box { 
+      flex: 1; 
+      min-width: 280px;
+      background: rgba(0,0,0,0.2); 
+      padding: 15px; 
+      border-radius: 10px; 
     }
-    
-    .login-form input {
-      width: 100%;
-      padding: 12px;
-      background: #1a1a1a;
-      border: 2px solid #333;
-      border-radius: 8px;
+    .test-box h4 { color: #ffd700; margin-bottom: 10px; }
+    .test-box input { 
+      width: 100%; 
+      padding: 10px; 
+      border: 2px solid rgba(255,215,0,0.3);
+      border-radius: 8px; 
+      background: rgba(0,0,0,0.3);
       color: #fff;
-      font-size: 14px;
-      margin-bottom: 16px;
+      margin-bottom: 10px;
+      direction: ltr;
     }
+    .test-box input:focus { outline: none; border-color: #ffd700; }
     
-    .login-form input:focus {
-      outline: none;
-      border-color: #ffd700;
-    }
-    
-    .login-form button {
-      width: 100%;
-      padding: 14px;
-      background: #ffd700;
-      color: #000;
-      border: none;
-      border-radius: 8px;
-      font-size: 16px;
-      font-weight: bold;
+    /* Tabs */
+    .tabs { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+    .tab { 
+      padding: 10px 20px; 
+      background: rgba(255,255,255,0.05); 
+      border: 2px solid transparent;
+      border-radius: 10px; 
       cursor: pointer;
       transition: all 0.2s;
     }
+    .tab:hover { background: rgba(255,215,0,0.1); }
+    .tab.active { border-color: #ffd700; background: rgba(255,215,0,0.2); }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
     
-    .login-form button:hover {
-      background: #ffdd33;
-      transform: translateY(-2px);
-    }
-    
-    .dashboard { display: none; }
-    .dashboard.visible { display: block; }
-    .login-form.hidden { display: none; }
-    
-    .stats-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 16px;
-      margin-bottom: 24px;
-    }
-    
-    .stat-card {
-      background: #111;
-      padding: 24px;
-      border-radius: 12px;
-      border: 2px solid #333;
-      text-align: center;
-      transition: all 0.2s;
-    }
-    
-    .stat-card:hover {
-      border-color: #ffd700;
-      transform: translateY(-2px);
-    }
-    
-    .stat-card.email { border-right: 4px solid #4CAF50; }
-    .stat-card.sms { border-right: 4px solid #2196F3; }
-    .stat-card.failed { border-right: 4px solid #f44336; }
-    .stat-card.cost { border-right: 4px solid #ffd700; }
-    
-    .stat-value {
-      font-size: 42px;
-      font-weight: bold;
-      color: #ffd700;
-      margin-bottom: 8px;
-    }
-    
-    .stat-label {
-      color: #888;
-      font-size: 14px;
-    }
-    
-    .history-section {
-      background: #111;
-      padding: 24px;
-      border-radius: 12px;
-      border: 2px solid #333;
-    }
-    
-    .history-section h2 {
-      color: #ffd700;
-      margin-bottom: 16px;
-      display: flex;
+    /* Modal */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.8);
+      z-index: 1000;
+      justify-content: center;
       align-items: center;
-      gap: 8px;
     }
-    
-    .history-list {
-      max-height: 400px;
+    .modal-overlay.active { display: flex; }
+    .modal {
+      background: #1a1a2e;
+      border: 2px solid #ffd700;
+      border-radius: 15px;
+      padding: 25px;
+      max-width: 700px;
+      width: 90%;
+      max-height: 85vh;
       overflow-y: auto;
     }
-    
-    .history-item {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 12px;
-      background: #1a1a1a;
-      border-radius: 8px;
-      margin-bottom: 8px;
-    }
-    
-    .history-item .icon {
-      font-size: 20px;
-    }
-    
-    .history-item .details {
-      flex: 1;
-    }
-    
-    .history-item .type {
-      font-weight: bold;
-      color: #fff;
-    }
-    
-    .history-item .time {
-      font-size: 12px;
-      color: #666;
-    }
-    
-    .history-item .status {
-      padding: 4px 12px;
-      border-radius: 20px;
-      font-size: 12px;
-      font-weight: bold;
-    }
-    
-    .history-item .status.success {
-      background: #4CAF50;
-      color: #fff;
-    }
-    
-    .history-item .status.failed {
-      background: #f44336;
-      color: #fff;
-    }
-    
-    .actions {
-      display: flex;
-      gap: 12px;
-      margin-bottom: 24px;
-    }
-    
-    .btn {
-      padding: 12px 24px;
+    .modal h3 { color: #ffd700; margin-bottom: 15px; }
+    .modal-close {
+      float: left;
+      background: none;
       border: none;
-      border-radius: 8px;
-      font-size: 14px;
-      font-weight: bold;
+      color: #ff6b6b;
+      font-size: 1.5em;
       cursor: pointer;
-      transition: all 0.2s;
     }
-    
-    .btn-primary {
-      background: #ffd700;
-      color: #000;
-    }
-    
-    .btn-danger {
-      background: #1a1a1a;
-      color: #f44336;
-      border: 2px solid #f44336;
-    }
-    
-    .btn:hover {
-      transform: translateY(-2px);
-    }
-    
-    .config-info {
-      background: #111;
-      padding: 16px;
+    .modal-content { margin-top: 15px; }
+    .modal-content pre {
+      background: rgba(0,0,0,0.3);
+      padding: 15px;
       border-radius: 8px;
-      margin-bottom: 24px;
-      display: flex;
-      gap: 24px;
-      flex-wrap: wrap;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+      font-size: 0.9em;
+      line-height: 1.5;
+      direction: ltr;
+      text-align: left;
     }
-    
-    .config-item {
-      display: flex;
-      align-items: center;
-      gap: 8px;
+    .detail-row { 
+      display: flex; 
+      padding: 10px 0; 
+      border-bottom: 1px solid rgba(255,255,255,0.1);
     }
+    .detail-label { 
+      width: 120px; 
+      color: #ffd700; 
+      font-weight: bold;
+      flex-shrink: 0;
+    }
+    .detail-value { flex: 1; word-break: break-all; }
     
-    .config-item .dot {
-      width: 12px;
-      height: 12px;
+    /* History clickable */
+    .history-row { cursor: pointer; }
+    .history-row:hover { background: rgba(255,215,0,0.15) !important; }
+    
+    /* Status badges */
+    .badge { 
+      display: inline-block; 
+      padding: 3px 8px; 
+      border-radius: 12px; 
+      font-size: 0.75em;
+      font-weight: bold;
+    }
+    .badge-success { background: #4ade80; color: #000; }
+    .badge-error { background: #ff6b6b; color: #fff; }
+    .badge-email { background: #60a5fa; color: #000; }
+    .badge-sms { background: #a855f7; color: #fff; }
+    
+    /* Loading */
+    .loading { text-align: center; padding: 40px; color: #888; }
+    .spinner { 
+      display: inline-block; 
+      width: 40px; 
+      height: 40px; 
+      border: 3px solid rgba(255,215,0,0.3);
+      border-top-color: #ffd700;
       border-radius: 50%;
+      animation: spin 1s linear infinite;
     }
+    @keyframes spin { to { transform: rotate(360deg); } }
     
-    .config-item .dot.active { background: #4CAF50; }
-    .config-item .dot.inactive { background: #f44336; }
+    /* Footer */
+    .footer { text-align: center; margin-top: 30px; color: #666; font-size: 0.9em; }
     
-    .error-msg {
-      color: #f44336;
-      text-align: center;
-      margin-top: 12px;
-    }
-    
-    /* Scrollbar */
-    ::-webkit-scrollbar { width: 8px; }
-    ::-webkit-scrollbar-track { background: #1a1a1a; }
-    ::-webkit-scrollbar-thumb { background: #ffd700; border-radius: 4px; }
-    
-    .refresh-note {
-      text-align: center;
-      color: #666;
-      font-size: 12px;
-      margin-top: 16px;
+    /* Responsive */
+    @media (max-width: 768px) {
+      .stats-grid { grid-template-columns: repeat(2, 1fr); }
+      .stat-value { font-size: 1.8em; }
+      th, td { padding: 8px 5px; font-size: 0.85em; }
     }
   </style>
 </head>
 <body>
   <div class="container">
-    <header>
-      <h1>🎟️ Beitar Ticket Monitor</h1>
-      <p>לוח בקרה לניהול התראות</p>
-    </header>
+    <h1>🎟️ Admin Dashboard</h1>
+    <p style="text-align: center; color: #888; margin-bottom: 25px;">בית"ר ירושלים - מערכת התראות כרטיסים</p>
     
-    <!-- Login Form -->
-    <div class="login-form" id="loginForm">
-      <h2>🔐 התחברות</h2>
-      <input type="password" id="adminPassword" placeholder="סיסמת אדמין">
-      <button onclick="login()">כניסה</button>
-      <p class="error-msg" id="loginError"></p>
+    <!-- Alert for low balance -->
+    <div id="lowBalanceAlert" class="alert alert-warning" style="display: none;">
+      ⚠️ יתרת 019SMS נמוכה! טען יתרה בהקדם.
     </div>
     
-    <!-- Dashboard -->
-    <div class="dashboard" id="dashboard">
-      <div class="config-info" id="configInfo">
-        <div class="config-item">
-          <span class="dot" id="emailDot"></span>
-          <span>אימייל</span>
+    <!-- Stats Grid -->
+    <div class="stats-grid">
+      <div class="stat-card success">
+        <div class="stat-value" id="emailsSent">-</div>
+        <div class="stat-label">📧 אימיילים נשלחו</div>
+      </div>
+      <div class="stat-card info">
+        <div class="stat-value" id="smsSent">-</div>
+        <div class="stat-label">📱 SMS נשלחו</div>
+      </div>
+      <div class="stat-card danger">
+        <div class="stat-value" id="emailsFailed">-</div>
+        <div class="stat-label">❌ אימיילים נכשלו</div>
+      </div>
+      <div class="stat-card warning">
+        <div class="stat-value" id="smsBalance">-</div>
+        <div class="stat-label">💰 יתרת SMS</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="subscriberCount">-</div>
+        <div class="stat-label">👥 מנויים</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="licenseCount">-</div>
+        <div class="stat-label">🔑 רישיונות</div>
+      </div>
+    </div>
+    
+    <!-- Tabs -->
+    <div class="tabs">
+      <div class="tab active" data-tab="history">📜 היסטוריה</div>
+      <div class="tab" data-tab="subscribers">👥 מנויים</div>
+      <div class="tab" data-tab="licenses">🔑 רישיונות</div>
+      <div class="tab" data-tab="coupons">🎁 קופונים</div>
+      <div class="tab" data-tab="games">⚽ משחקים במעקב</div>
+      <div class="tab" data-tab="test">🧪 בדיקות</div>
+    </div>
+    
+    <!-- History Tab -->
+    <div id="tab-history" class="tab-content active">
+      <div class="section">
+        <h2>📜 היסטוריית שליחות (לחץ על שורה לפרטים מלאים)</h2>
+        <div id="historyLoading" class="loading"><div class="spinner"></div><p>טוען...</p></div>
+        <table id="historyTable" style="display: none;">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>סוג</th>
+              <th>סטטוס</th>
+              <th>נמען</th>
+              <th>זמן</th>
+              <th>פעולה</th>
+            </tr>
+          </thead>
+          <tbody id="historyBody"></tbody>
+        </table>
+      </div>
+    </div>
+    
+    <!-- Subscribers Tab -->
+    <div id="tab-subscribers" class="tab-content">
+      <div class="section">
+        <h2>👥 מנויים רשומים</h2>
+        <div id="subscribersLoading" class="loading"><div class="spinner"></div><p>טוען...</p></div>
+        <table id="subscribersTable" style="display: none;">
+          <thead>
+            <tr>
+              <th>אימייל</th>
+              <th>טלפון</th>
+              <th>SMS</th>
+              <th>VIP</th>
+              <th>נרשם</th>
+              <th>פעולות</th>
+            </tr>
+          </thead>
+          <tbody id="subscribersBody"></tbody>
+        </table>
+      </div>
+    </div>
+    
+    <!-- Licenses Tab -->
+    <div id="tab-licenses" class="tab-content">
+      <div class="section">
+        <h2>🔑 רישיונות</h2>
+        <div id="licensesLoading" class="loading"><div class="spinner"></div><p>טוען...</p></div>
+        <table id="licensesTable" style="display: none;">
+          <thead>
+            <tr>
+              <th>מפתח</th>
+              <th>שם</th>
+              <th>טלפון</th>
+              <th>תוכנית</th>
+              <th>סטטוס</th>
+              <th>תפוגה</th>
+            </tr>
+          </thead>
+          <tbody id="licensesBody"></tbody>
+        </table>
+      </div>
+    </div>
+    
+    <!-- Coupons Tab -->
+    <div id="tab-coupons" class="tab-content">
+      <div class="section">
+        <h2>🎁 קופונים פעילים</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>קוד</th>
+              <th>הנחה</th>
+              <th>תיאור</th>
+              <th>סטטוס</th>
+            </tr>
+          </thead>
+          <tbody id="couponsBody"></tbody>
+        </table>
+      </div>
+    </div>
+    
+    <!-- Games Tab -->
+    <div id="tab-games" class="tab-content">
+      <div class="section">
+        <h2>⚽ משחקים במעקב</h2>
+        <div id="gamesLoading" class="loading"><div class="spinner"></div><p>טוען...</p></div>
+        <table id="gamesTable" style="display: none;">
+          <thead>
+            <tr>
+              <th>משחק</th>
+              <th>מנוי</th>
+              <th>נוסף בתאריך</th>
+              <th>כרטיסים</th>
+            </tr>
+          </thead>
+          <tbody id="gamesBody"></tbody>
+        </table>
+        <p id="noGames" style="display: none; text-align: center; color: #888; padding: 20px;">אין משחקים במעקב כרגע</p>
+      </div>
+    </div>
+    
+    <!-- Test Tab -->
+    <div id="tab-test" class="tab-content">
+      <div class="section">
+        <h2>🧪 בדיקת התראות</h2>
+        <div class="test-section">
+          <div class="test-box">
+            <h4>📧 בדיקת אימייל</h4>
+            <input type="email" id="testEmail" placeholder="your@email.com">
+            <button class="btn btn-primary" onclick="testEmail()">שלח אימייל בדיקה</button>
+            <p id="emailResult" style="margin-top: 10px; font-size: 0.9em;"></p>
+          </div>
+          <div class="test-box">
+            <h4>📱 בדיקת SMS</h4>
+            <input type="tel" id="testPhone" placeholder="0501234567">
+            <button class="btn btn-info" onclick="testSMS()">שלח SMS בדיקה</button>
+            <p id="smsResult" style="margin-top: 10px; font-size: 0.9em;"></p>
+          </div>
         </div>
-        <div class="config-item">
-          <span class="dot" id="smsDot"></span>
-          <span>SMS</span>
-        </div>
-        <div class="config-item" id="twilioNum"></div>
       </div>
       
-      <!-- License Summary Stats -->
-      <div class="stats-grid" style="margin-bottom: 16px;">
-        <div class="stat-card" style="border-right: 4px solid #ffd700;">
-          <div class="stat-value" id="totalLicenses">0</div>
-          <div class="stat-label">סה"כ לקוחות</div>
-        </div>
-        <div class="stat-card" style="border-right: 4px solid #4CAF50;">
-          <div class="stat-value" id="activeLicenses">0</div>
-          <div class="stat-label">רישיונות פעילים</div>
-        </div>
-        <div class="stat-card" style="border-right: 4px solid #f44336;">
-          <div class="stat-value" id="expiredLicenses">0</div>
-          <div class="stat-label">פגו תוקף</div>
-        </div>
-        <div class="stat-card" style="border-right: 4px solid #ff9800;">
-          <div class="stat-value" id="expiringLicenses">0</div>
-          <div class="stat-label">יפוגו ב-7 ימים</div>
-        </div>
+      <div class="section">
+        <h2>⚙️ פעולות מערכת</h2>
+        <button class="btn btn-danger" onclick="resetStats()">🗑️ איפוס סטטיסטיקות</button>
+        <button class="btn btn-success" style="margin-right: 10px;" onclick="refreshData()">🔄 רענן נתונים</button>
       </div>
-      
-      <!-- Plan Breakdown -->
-      <div class="stats-grid" style="margin-bottom: 16px;">
-        <div class="stat-card" style="border-right: 4px solid #00bcd4;">
-          <div class="stat-value" id="trialPlans">0</div>
-          <div class="stat-label">תקופת ניסיון</div>
-        </div>
-        <div class="stat-card" style="border-right: 4px solid #2196F3;">
-          <div class="stat-value" id="monthlyPlans">0</div>
-          <div class="stat-label">חודשי (₪50)</div>
-        </div>
-        <div class="stat-card" style="border-right: 4px solid #9c27b0;">
-          <div class="stat-value" id="yearlyPlans">0</div>
-          <div class="stat-label">שנתי (₪400)</div>
-        </div>
-        <div class="stat-card" style="border-right: 4px solid #4CAF50;">
-          <div class="stat-value" id="estimatedRevenue">₪0</div>
-          <div class="stat-label">הכנסה משוערת/חודש</div>
-        </div>
-      </div>
-      
-      <!-- Usage Stats -->
-      <div class="stats-grid">
-        <div class="stat-card email">
-          <div class="stat-value" id="emailsSent">0</div>
-          <div class="stat-label">אימיילים נשלחו</div>
-        </div>
-        <div class="stat-card sms">
-          <div class="stat-value" id="smsSent">0</div>
-          <div class="stat-label">SMS נשלחו</div>
-        </div>
-        <div class="stat-card failed">
-          <div class="stat-value" id="failed">0</div>
-          <div class="stat-label">נכשלו</div>
-        </div>
-        <div class="stat-card cost">
-          <div class="stat-value" id="totalCost">$0</div>
-          <div class="stat-label">עלות SMS משוערת</div>
-        </div>
-      </div>
-      
-      <div class="actions">
-        <button class="btn btn-primary" onclick="refreshStats()">🔄 רענן נתונים</button>
-        <button class="btn btn-danger" onclick="resetStats()">🗑️ אפס סטטיסטיקות</button>
-      </div>
-      
-      <!-- License Management Section -->
-      <div class="history-section" style="margin-bottom: 24px;">
-        <h2>🔑 ניהול רישיונות</h2>
-        
-        <!-- License Stats Summary -->
-        <div id="licenseSummary" style="background: #1a1a1a; padding: 12px; border-radius: 8px; margin-bottom: 16px; display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px;">
-        </div>
-        
-        <div style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
-          <input type="text" id="newUserName" placeholder="שם הלקוח" style="flex: 1; min-width: 120px; padding: 10px; background: #1a1a1a; border: 2px solid #333; border-radius: 8px; color: #fff;">
-          <input type="tel" id="newUserPhone" placeholder="טלפון (חובה)" style="flex: 1; min-width: 120px; padding: 10px; background: #1a1a1a; border: 2px solid #ffd700; border-radius: 8px; color: #fff;">
-          <input type="email" id="newUserEmail" placeholder="אימייל (אופציונלי)" style="flex: 1; min-width: 150px; padding: 10px; background: #1a1a1a; border: 2px solid #333; border-radius: 8px; color: #fff;">
-          <select id="newPlan" style="padding: 10px; background: #1a1a1a; border: 2px solid #333; border-radius: 8px; color: #fff;">
-            <option value="trial">ניסיון חינם (4 משחקים)</option>
-            <option value="monthly">חודשי - ₪50 (100 SMS)</option>
-            <option value="yearly">שנתי - ₪400 (1200 SMS) - חסכון ₪200!</option>
-          </select>
-          <button class="btn btn-primary" onclick="createLicense()">➕ צור רישיון</button>
-        </div>
-        
-        <!-- Filter -->
-        <div style="margin-bottom: 12px;">
-          <select id="licenseFilter" onchange="fetchLicenses()" style="padding: 8px 12px; background: #1a1a1a; border: 2px solid #333; border-radius: 8px; color: #fff;">
-            <option value="all">הכל</option>
-            <option value="active">פעילים בלבד</option>
-            <option value="expired">פגו תוקף</option>
-            <option value="expiring">יפוגו בקרוב</option>
-          </select>
-        </div>
-        
-        <div id="licensesList" style="max-height: 400px; overflow-y: auto;">
-          <p style="color: #666; text-align: center;">טוען רישיונות...</p>
-        </div>
-      </div>
-      
-      <!-- Coupon Management Section -->
-      <div class="history-section" style="margin-bottom: 24px;">
-        <h2>🎫 קודי קופון פעילים</h2>
-        <div id="couponsList" style="display: flex; flex-wrap: wrap; gap: 12px; margin-top: 12px;">
-          <!-- Coupons will be loaded here -->
-        </div>
-      </div>
-      
-      <div class="history-section">
-        <h2>📜 היסטוריה אחרונה</h2>
-        <div class="history-list" id="historyList">
-          <p style="color: #666; text-align: center;">טוען...</p>
-        </div>
-      </div>
-      
-      <p class="refresh-note">הנתונים מתעדכנים בכל פעם שתלחץ על "רענן נתונים"</p>
+    </div>
+    
+    <div class="footer">
+      <p>💛🖤 בית"ר ירושלים - Admin Dashboard v2.0</p>
+      <p style="margin-top: 5px;">עדכון אחרון: <span id="lastUpdate">-</span></p>
+    </div>
+  </div>
+  
+  <!-- Modal for log details -->
+  <div class="modal-overlay" id="logModal">
+    <div class="modal">
+      <button class="modal-close" onclick="closeModal()">&times;</button>
+      <h3>📋 פרטי השליחה המלאים</h3>
+      <div class="modal-content" id="modalContent"></div>
     </div>
   </div>
   
   <script>
-    let adminPassword = '';
+    // Get admin password from URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const adminPassword = urlParams.get('p') || urlParams.get('password') || '';
     
-    function login() {
-      adminPassword = document.getElementById('adminPassword').value;
-      fetchStats();
-    }
+    // Store history data for modal
+    let historyData = [];
     
-    async function fetchStats() {
-      try {
-        const res = await fetch('/api/admin/stats', {
-          headers: { 'x-admin-password': adminPassword }
-        });
-        
-        if (!res.ok) {
-          document.getElementById('loginError').textContent = 'סיסמה שגויה';
-          return;
+    // API call helper
+    async function apiCall(endpoint, method = 'GET', body = null) {
+      const options = {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-password': adminPassword
         }
-        
-        const data = await res.json();
-        
-        // Show dashboard, hide login
-        document.getElementById('loginForm').classList.add('hidden');
-        document.getElementById('dashboard').classList.add('visible');
-        
-        // Update stats
-        document.getElementById('emailsSent').textContent = data.usage.emailsSent;
-        document.getElementById('smsSent').textContent = data.usage.smsSent;
-        document.getElementById('failed').textContent = data.usage.emailsFailed + data.usage.smsFailed;
-        document.getElementById('totalCost').textContent = '$' + (data.usage.smsSent * 0.05).toFixed(2);
-        
-        // Update config
-        document.getElementById('emailDot').className = 'dot ' + (data.config.emailConfigured ? 'active' : 'inactive');
-        document.getElementById('smsDot').className = 'dot ' + (data.config.smsConfigured ? 'active' : 'inactive');
-        if (data.config.twilioNumber) {
-          document.getElementById('twilioNum').innerHTML = `<span>Twilio: ${data.config.twilioNumber}</span>`;
-        }
-        
-        // Update history
-        const historyList = document.getElementById('historyList');
-        if (data.usage.history.length === 0) {
-          historyList.innerHTML = '<p style="color: #666; text-align: center;">אין היסטוריה עדיין</p>';
-        } else {
-          historyList.innerHTML = data.usage.history.map(item => `
-            <div class="history-item">
-              <span class="icon">${item.type === 'email' ? '✉️' : '📱'}</span>
-              <div class="details">
-                <div class="type">${item.type === 'email' ? 'אימייל' : 'SMS'} ${item.to ? 'ל-' + item.to : ''}</div>
-                <div class="time">${new Date(item.timestamp).toLocaleString('he-IL')}</div>
-              </div>
-              <span class="status ${item.success ? 'success' : 'failed'}">${item.success ? 'הצלחה' : 'נכשל'}</span>
-            </div>
-          `).join('');
-        }
-        
-        // Load licenses
-        await fetchLicenses();
-        
-        // Load coupons
-        await fetchCoupons();
-        
-      } catch (error) {
-        document.getElementById('loginError').textContent = 'שגיאה בהתחברות לשרת';
-      }
-    }
-    
-    async function fetchCoupons() {
-      try {
-        const res = await fetch('/api/admin/coupons', {
-          headers: { 'x-admin-password': adminPassword }
-        });
-        if (!res.ok) return;
-        
-        const coupons = await res.json();
-        const couponsList = document.getElementById('couponsList');
-        
-        couponsList.innerHTML = Object.entries(coupons).map(([code, coupon]) => `
-          <div style="background: ${coupon.active ? '#1a1a1a' : '#2a2a2a'}; border: 2px solid ${coupon.active ? '#ffd700' : '#333'}; border-radius: 8px; padding: 12px; min-width: 180px; ${!coupon.active ? 'opacity: 0.5;' : ''}">
-            <div style="font-family: monospace; color: #ffd700; font-size: 16px; font-weight: bold;">${code}</div>
-            <div style="color: #4CAF50; font-size: 14px; margin-top: 4px;">${coupon.description}</div>
-            <div style="color: #888; font-size: 11px; margin-top: 4px;">
-              ${coupon.type === 'percent' ? coupon.discount + '%' : '₪' + coupon.discount} הנחה
-              ${coupon.minPlan ? '| רק ל' + coupon.minPlan : ''}
-            </div>
-            <div style="margin-top: 8px;">
-              <span style="padding: 2px 8px; background: ${coupon.active ? '#4CAF50' : '#f44336'}; border-radius: 4px; font-size: 10px; color: #fff;">
-                ${coupon.active ? 'פעיל' : 'לא פעיל'}
-              </span>
-            </div>
-          </div>
-        `).join('');
-      } catch (error) {
-        console.error('Error fetching coupons:', error);
-      }
-    }
-    
-    async function fetchLicenses() {
-      try {
-        const res = await fetch('/api/admin/licenses', {
-          headers: { 'x-admin-password': adminPassword }
-        });
-        
-        if (!res.ok) return;
-        
-        let licenses = await res.json();
-        
-        // Calculate stats
-        const total = licenses.length;
-        const active = licenses.filter(l => l.active && !l.isExpired && !(l.plan === 'trial' && l.usage?.sms >= 2)).length;
-        const expired = licenses.filter(l => l.isExpired || (l.plan === 'trial' && l.usage?.sms >= 4)).length;
-        const expiring = licenses.filter(l => l.active && !l.isExpired && typeof l.daysLeft === 'number' && l.daysLeft <= 7 && l.daysLeft > 0).length;
-        
-        // Plan breakdown
-        const trial = licenses.filter(l => l.plan === 'trial').length;
-        const monthly = licenses.filter(l => l.plan === 'monthly').length;
-        const yearly = licenses.filter(l => l.plan === 'yearly').length;
-        
-        // Estimated revenue (₪50/month, ₪400/year = ₪33.33/month)
-        const monthlyPrice = 50;
-        const yearlyPrice = 400 / 12; // per month
-        const estimatedMonthly = (monthly * monthlyPrice) + (yearly * yearlyPrice);
-        
-        // Update stats display
-        document.getElementById('totalLicenses').textContent = total;
-        document.getElementById('activeLicenses').textContent = active;
-        document.getElementById('expiredLicenses').textContent = expired;
-        document.getElementById('expiringLicenses').textContent = expiring;
-        document.getElementById('trialPlans').textContent = trial;
-        document.getElementById('monthlyPlans').textContent = monthly;
-        document.getElementById('yearlyPlans').textContent = yearly;
-        document.getElementById('estimatedRevenue').textContent = '₪' + estimatedMonthly.toFixed(0);
-        
-        // Apply filter
-        const filter = document.getElementById('licenseFilter').value;
-        if (filter === 'active') {
-          licenses = licenses.filter(l => l.active && !l.isExpired);
-        } else if (filter === 'expired') {
-          licenses = licenses.filter(l => l.isExpired || !l.active);
-        } else if (filter === 'expiring') {
-          licenses = licenses.filter(l => l.active && !l.isExpired && typeof l.daysLeft === 'number' && l.daysLeft <= 7);
-        }
-        
-        const licensesList = document.getElementById('licensesList');
-        
-        if (licenses.length === 0) {
-          licensesList.innerHTML = '<p style="color: #666; text-align: center;">אין רישיונות להצגה</p>';
-          return;
-        }
-        
-        // Sort: expiring soon first, then by creation date
-        licenses.sort((a, b) => {
-          if (a.isExpired && !b.isExpired) return 1;
-          if (!a.isExpired && b.isExpired) return -1;
-          if (typeof a.daysLeft === 'number' && typeof b.daysLeft === 'number') {
-            return a.daysLeft - b.daysLeft;
-          }
-          return new Date(b.createdAt) - new Date(a.createdAt);
-        });
-        
-        licensesList.innerHTML = licenses.map(lic => {
-          const isTrial = lic.plan === 'trial';
-          const trialEnded = isTrial && (lic.usage?.sms || 0) >= 4;
-          const planDisplay = isTrial ? 'ניסיון' : (lic.plan === 'yearly' ? 'שנתי' : 'חודשי');
-          const smsDisplay = isTrial ? `${lic.usage?.sms || 0}/4` : `${lic.usage?.sms || 0}/${lic.smsLimit}`;
-          
-          return `
-          <div class="history-item" style="flex-wrap: wrap; ${lic.isExpired || trialEnded ? 'opacity: 0.6;' : ''} ${typeof lic.daysLeft === 'number' && lic.daysLeft <= 3 && lic.daysLeft > 0 ? 'border: 2px solid #f44336;' : ''} ${trialEnded ? 'border: 2px solid #ff9800;' : ''}">
-            <div style="flex: 1; min-width: 200px;">
-              <div class="type">${lic.userName} ${lic.isExpired ? '⚠️' : ''} ${trialEnded ? '🔔' : ''}</div>
-              <div class="time">${lic.userPhone || 'ללא טלפון'} | ${lic.userEmail || 'ללא אימייל'}</div>
-              <div style="font-family: monospace; font-size: 11px; color: #ffd700; margin-top: 4px;">${lic.key}</div>
-              <div style="font-size: 10px; color: #888; margin-top: 2px;">נוצר: ${new Date(lic.createdAt).toLocaleDateString('he-IL')}</div>
-            </div>
-            <div style="text-align: center; min-width: 60px;">
-              <div style="font-size: 11px; color: #888;">תוכנית</div>
-              <div style="font-weight: bold; color: ${isTrial ? '#00bcd4' : '#2196F3'};">${planDisplay}</div>
-            </div>
-            <div style="text-align: center; min-width: 60px;">
-              <div style="font-size: 11px; color: #888;">SMS</div>
-              <div style="font-weight: bold; color: ${trialEnded ? '#f44336' : '#fff'};">${smsDisplay}</div>
-            </div>
-            <div style="text-align: center; min-width: 70px;">
-              <div style="font-size: 11px; color: #888;">נותרו</div>
-              <div style="font-weight: bold; color: ${typeof lic.daysLeft === 'number' && lic.daysLeft < 7 ? '#f44336' : '#4CAF50'};">
-                ${isTrial ? (trialEnded ? 'נגמר!' : '2 SMS') : (lic.daysLeft === 'unlimited' ? '∞' : (lic.daysLeft <= 0 ? 'פג!' : lic.daysLeft + ' ימים'))}
-              </div>
-            </div>
-            <span class="status ${lic.active && !lic.isExpired && !trialEnded ? 'success' : 'failed'}">
-              ${trialEnded ? 'ניסיון נגמר' : (lic.active && !lic.isExpired ? 'פעיל' : (lic.isExpired ? 'פג תוקף' : 'מושבת'))}
-            </span>
-            <div style="display: flex; gap: 4px; margin-top: 8px; width: 100%; flex-wrap: wrap;">
-              ${trialEnded ? `
-                <button onclick="upgradeLicense('${lic.key}', 'monthly')" style="flex: 1; min-width: 80px; padding: 6px; background: #2196F3; border: none; border-radius: 4px; color: #fff; cursor: pointer; font-size: 11px;">⬆️ שדרג חודשי</button>
-                <button onclick="upgradeLicense('${lic.key}', 'yearly')" style="flex: 1; min-width: 80px; padding: 6px; background: #9c27b0; border: none; border-radius: 4px; color: #fff; cursor: pointer; font-size: 11px;">⬆️ שדרג שנתי</button>
-              ` : ''}
-              <button onclick="extendLicense('${lic.key}', 30)" style="flex: 1; min-width: 60px; padding: 6px; background: #4CAF50; border: none; border-radius: 4px; color: #fff; cursor: pointer; font-size: 11px;">+30 יום</button>
-              <button onclick="toggleLicense('${lic.key}', ${!lic.active})" style="flex: 1; min-width: 60px; padding: 6px; background: ${lic.active ? '#f44336' : '#4CAF50'}; border: none; border-radius: 4px; color: #fff; cursor: pointer; font-size: 11px;">${lic.active ? 'השבת' : 'הפעל'}</button>
-              <button onclick="copyLicense('${lic.key}')" style="flex: 1; min-width: 60px; padding: 6px; background: #2196F3; border: none; border-radius: 4px; color: #fff; cursor: pointer; font-size: 11px;">📋 העתק</button>
-              <button onclick="sendReminder('${lic.key}')" style="flex: 1; min-width: 60px; padding: 6px; background: #ff9800; border: none; border-radius: 4px; color: #fff; cursor: pointer; font-size: 11px;" ${!lic.userEmail ? 'disabled title="אין אימייל"' : ''}>📧 תזכורת</button>
-              <button onclick="sendWelcome('${lic.key}')" style="flex: 1; min-width: 60px; padding: 6px; background: #9c27b0; border: none; border-radius: 4px; color: #fff; cursor: pointer; font-size: 11px;" ${!lic.userEmail ? 'disabled title="אין אימייל"' : ''}>🎉 ברוכים הבאים</button>
-              <button onclick="deleteLicense('${lic.key}')" style="flex: 1; min-width: 60px; padding: 6px; background: #333; border: none; border-radius: 4px; color: #f44336; cursor: pointer; font-size: 11px;">🗑️ מחק</button>
-            </div>
-          </div>
-        `}).join('');
-        
-      } catch (error) {
-        console.error('Error fetching licenses:', error);
-      }
-    }
-    
-    async function createLicense() {
-      const userName = document.getElementById('newUserName').value || 'לקוח חדש';
-      const userPhone = document.getElementById('newUserPhone').value;
-      const userEmail = document.getElementById('newUserEmail').value;
-      const plan = document.getElementById('newPlan').value;
+      };
+      if (body) options.body = JSON.stringify(body);
       
-      if (!userPhone) {
-        alert('מספר טלפון הוא שדה חובה!');
+      const res = await fetch(endpoint, options);
+      return res.json();
+    }
+    
+    // Load all data
+    async function loadData() {
+      try {
+        // Load admin data endpoint
+        const adminData = await apiCall('/api/admin/data?p=' + adminPassword);
+        
+        if (adminData.error) {
+          alert('שגיאה: ' + adminData.error);
+          return;
+        }
+        
+        // Update stats cards
+        document.getElementById('emailsSent').textContent = adminData.usage?.emailsSent || 0;
+        document.getElementById('smsSent').textContent = adminData.usage?.smsSent || 0;
+        document.getElementById('emailsFailed').textContent = adminData.usage?.emailsFailed || 0;
+        
+        // SMS Balance
+        if (adminData.smsBalance) {
+          const balance = adminData.smsBalance.balance;
+          document.getElementById('smsBalance').textContent = balance !== null ? balance : 'N/A';
+          if (adminData.smsBalance.lowBalance) {
+            document.getElementById('lowBalanceAlert').style.display = 'block';
+          } else {
+            document.getElementById('lowBalanceAlert').style.display = 'none';
+          }
+        }
+        
+        // Counts
+        document.getElementById('subscriberCount').textContent = adminData.subscriberCount || 0;
+        document.getElementById('licenseCount').textContent = adminData.licenseCount || 0;
+        
+        // History
+        historyData = adminData.history || [];
+        renderHistory(historyData);
+        
+        // Subscribers
+        renderSubscribers(adminData.subscribers || {});
+        
+        // Licenses
+        renderLicenses(adminData.licenses || {});
+        
+        // Coupons
+        renderCoupons(adminData.coupons || {});
+        
+        // Games
+        renderGames(adminData.subscribers || {});
+        
+        // Update timestamp
+        document.getElementById('lastUpdate').textContent = new Date().toLocaleString('he-IL');
+        
+      } catch (e) {
+        console.error('Error loading data:', e);
+        alert('שגיאה בטעינת נתונים: ' + e.message);
+      }
+    }
+    
+    // Render history table
+    function renderHistory(history) {
+      document.getElementById('historyLoading').style.display = 'none';
+      document.getElementById('historyTable').style.display = 'table';
+      
+      const tbody = document.getElementById('historyBody');
+      if (history.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #888;">אין היסטוריה עדיין</td></tr>';
         return;
       }
       
-      try {
-        const res = await fetch('/api/admin/licenses', {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'x-admin-password': adminPassword 
-          },
-          body: JSON.stringify({
-            userName,
-            userPhone,
-            userEmail,
-            plan
-          })
-        });
+      tbody.innerHTML = history.slice(0, 50).map((entry, idx) => {
+        const typeClass = entry.type === 'email' ? 'badge-email' : 'badge-sms';
+        const typeIcon = entry.type === 'email' ? '📧' : '📱';
+        const statusClass = entry.success ? 'badge-success' : 'badge-error';
+        const statusText = entry.success ? '✅ הצלחה' : '❌ נכשל';
+        const time = new Date(entry.timestamp).toLocaleString('he-IL');
+        const to = entry.to || '-';
         
-        const data = await res.json();
-        
-        if (data.success) {
-          alert(`רישיון נוצר בהצלחה!\n\n${data.license.key}\n\nהועתק ללוח`);
-          navigator.clipboard.writeText(data.license.key);
-          document.getElementById('newUserName').value = '';
-          document.getElementById('newUserPhone').value = '';
-          document.getElementById('newUserEmail').value = '';
-          await fetchLicenses();
-        }
-      } catch (error) {
-        alert('שגיאה ביצירת רישיון');
-      }
+        return `
+          <tr class="history-row" onclick="showLogDetails(${idx})">
+            <td>${idx + 1}</td>
+            <td><span class="badge ${typeClass}">${typeIcon} ${entry.type}</span></td>
+            <td><span class="badge ${statusClass}">${statusText}</span></td>
+            <td style="direction: ltr; text-align: right;">${to}</td>
+            <td>${time}</td>
+            <td><button class="btn btn-sm btn-info" onclick="event.stopPropagation(); showLogDetails(${idx})">👁️ פרטים</button></td>
+          </tr>
+        `;
+      }).join('');
     }
     
-    async function upgradeLicense(key, plan) {
-      const prices = { monthly: 50, yearly: 400 };
-      if (!confirm(`לשדרג לתוכנית ${plan === 'monthly' ? 'חודשית' : 'שנתית'}?\nמחיר: ₪${prices[plan]}`)) return;
+    // Show log details in modal
+    function showLogDetails(idx) {
+      const entry = historyData[idx];
+      if (!entry) return;
       
-      try {
-        await fetch(`/api/admin/licenses/${key}`, {
-          method: 'PUT',
-          headers: { 
-            'Content-Type': 'application/json',
-            'x-admin-password': adminPassword 
-          },
-          body: JSON.stringify({ upgradePlan: plan })
-        });
-        alert('הרישיון שודרג בהצלחה!');
-        await fetchLicenses();
-      } catch (error) {
-        alert('שגיאה בשדרוג רישיון');
-      }
-    }
-    
-    async function extendLicense(key, days) {
-      try {
-        await fetch(`/api/admin/licenses/${key}`, {
-          method: 'PUT',
-          headers: { 
-            'Content-Type': 'application/json',
-            'x-admin-password': adminPassword 
-          },
-          body: JSON.stringify({ extendDays: days })
-        });
-        await fetchLicenses();
-      } catch (error) {
-        alert('שגיאה בהארכת רישיון');
-      }
-    }
-    
-    async function toggleLicense(key, active) {
-      try {
-        await fetch(`/api/admin/licenses/${key}`, {
-          method: 'PUT',
-          headers: { 
-            'Content-Type': 'application/json',
-            'x-admin-password': adminPassword 
-          },
-          body: JSON.stringify({ active })
-        });
-        await fetchLicenses();
-      } catch (error) {
-        alert('שגיאה בעדכון רישיון');
-      }
-    }
-    
-    async function deleteLicense(key) {
-      if (!confirm('האם למחוק את הרישיון?')) return;
+      const time = new Date(entry.timestamp).toLocaleString('he-IL');
+      const statusText = entry.success ? '✅ הצלחה' : '❌ נכשל';
+      const typeIcon = entry.type === 'email' ? '📧' : '📱';
+      const typeName = entry.type === 'email' ? 'אימייל' : 'SMS';
       
-      try {
-        await fetch(`/api/admin/licenses/${key}`, {
-          method: 'DELETE',
-          headers: { 'x-admin-password': adminPassword }
-        });
-        await fetchLicenses();
-      } catch (error) {
-        alert('שגיאה במחיקת רישיון');
-      }
-    }
-    
-    function copyLicense(key) {
-      navigator.clipboard.writeText(key);
-      alert('הרישיון הועתק ללוח!');
-    }
-    
-    async function sendReminder(key) {
-      try {
-        const res = await fetch(`/api/admin/licenses/${key}/remind`, {
-          method: 'POST',
-          headers: { 'x-admin-password': adminPassword }
-        });
-        const data = await res.json();
-        alert(data.message);
-      } catch (error) {
-        alert('שגיאה בשליחת תזכורת');
-      }
-    }
-    
-    async function sendWelcome(key) {
-      try {
-        const res = await fetch(`/api/admin/licenses/${key}/welcome`, {
-          method: 'POST',
-          headers: { 'x-admin-password': adminPassword }
-        });
-        const data = await res.json();
-        alert(data.message);
-      } catch (error) {
-        alert('שגיאה בשליחת אימייל');
-      }
-    }
-    
-    function refreshStats() {
-      fetchStats();
-    }
-    
-    async function resetStats() {
-      if (!confirm('האם אתה בטוח שברצונך לאפס את כל הסטטיסטיקות?')) return;
+      let content = `
+        <div class="detail-row">
+          <div class="detail-label">סוג:</div>
+          <div class="detail-value">${typeIcon} ${typeName}</div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">סטטוס:</div>
+          <div class="detail-value">${statusText}</div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">נמען:</div>
+          <div class="detail-value" style="direction: ltr;">${entry.to || '-'}</div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">זמן:</div>
+          <div class="detail-value">${time}</div>
+        </div>
+      `;
       
-      try {
-        const res = await fetch('/api/admin/reset-stats', {
-          method: 'POST',
-          headers: { 'x-admin-password': adminPassword }
-        });
-        
-        if (res.ok) {
-          fetchStats();
-          alert('הסטטיסטיקות אופסו בהצלחה');
-        }
-      } catch (error) {
-        alert('שגיאה באיפוס הסטטיסטיקות');
+      if (entry.provider) {
+        content += `
+          <div class="detail-row">
+            <div class="detail-label">ספק:</div>
+            <div class="detail-value">${entry.provider}</div>
+          </div>
+        `;
       }
+      
+      if (entry.subject) {
+        content += `
+          <div class="detail-row">
+            <div class="detail-label">נושא:</div>
+            <div class="detail-value">${escapeHtml(entry.subject)}</div>
+          </div>
+        `;
+      }
+      
+      if (entry.error) {
+        content += `
+          <div class="detail-row">
+            <div class="detail-label">שגיאה:</div>
+            <div class="detail-value" style="color: #ff6b6b;">${escapeHtml(entry.error)}</div>
+          </div>
+        `;
+      }
+      
+      if (entry.message) {
+        content += `
+          <h4 style="color: #ffd700; margin-top: 20px; margin-bottom: 10px;">📝 תוכן ההודעה:</h4>
+          <pre>${escapeHtml(entry.message)}</pre>
+        `;
+      }
+      
+      // Show all raw data as JSON
+      content += `
+        <h4 style="color: #ffd700; margin-top: 20px; margin-bottom: 10px;">🔍 כל הנתונים (JSON):</h4>
+        <pre>${JSON.stringify(entry, null, 2)}</pre>
+      `;
+      
+      document.getElementById('modalContent').innerHTML = content;
+      document.getElementById('logModal').classList.add('active');
     }
     
-    // Check if already logged in (for refresh)
-    document.getElementById('adminPassword').addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') login();
+    function closeModal() {
+      document.getElementById('logModal').classList.remove('active');
+    }
+    
+    // Close modal on overlay click
+    document.getElementById('logModal').addEventListener('click', (e) => {
+      if (e.target.id === 'logModal') closeModal();
     });
+    
+    // Escape HTML
+    function escapeHtml(text) {
+      if (!text) return '';
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+    
+    // Render subscribers table
+    function renderSubscribers(subscribers) {
+      document.getElementById('subscribersLoading').style.display = 'none';
+      document.getElementById('subscribersTable').style.display = 'table';
+      
+      const tbody = document.getElementById('subscribersBody');
+      const entries = Object.entries(subscribers);
+      
+      if (entries.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #888;">אין מנויים עדיין</td></tr>';
+        return;
+      }
+      
+      tbody.innerHTML = entries.slice(0, 50).map(([key, sub]) => {
+        const regDate = sub.registeredAt ? new Date(sub.registeredAt).toLocaleDateString('he-IL') : '-';
+        const smsStatus = sub.smsEnabled ? '✅' : '❌';
+        const vipStatus = sub.vip ? '👑' : '-';
+        
+        return `
+          <tr>
+            <td style="direction: ltr; text-align: right; max-width: 200px; overflow: hidden; text-overflow: ellipsis;">${key}</td>
+            <td style="direction: ltr; text-align: right;">${sub.phone || '-'}</td>
+            <td>${smsStatus}</td>
+            <td>${vipStatus}</td>
+            <td>${regDate}</td>
+            <td>
+              <button class="btn btn-sm btn-success" onclick="enableVip('${escapeHtml(key)}')">👑 VIP</button>
+              <button class="btn btn-sm btn-danger" onclick="deleteSubscriber('${escapeHtml(key)}')">🗑️</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+    
+    // Render licenses table
+    function renderLicenses(licenses) {
+      document.getElementById('licensesLoading').style.display = 'none';
+      document.getElementById('licensesTable').style.display = 'table';
+      
+      const tbody = document.getElementById('licensesBody');
+      const entries = Object.entries(licenses);
+      
+      if (entries.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #888;">אין רישיונות עדיין</td></tr>';
+        return;
+      }
+      
+      tbody.innerHTML = entries.slice(0, 50).map(([key, lic]) => {
+        const isExpired = lic.expiresAt && new Date(lic.expiresAt) < new Date();
+        const statusClass = isExpired ? 'expired' : (lic.active ? 'active' : '');
+        const statusText = isExpired ? '⏰ פג תוקף' : (lic.active ? '✅ פעיל' : '❌ לא פעיל');
+        const displayName = lic.userName || lic.userEmail || '-';
+        const expiryDate = lic.expiresAt ? new Date(lic.expiresAt).toLocaleDateString('he-IL') : '∞';
+        
+        return `
+          <tr class="${statusClass}">
+            <td style="font-family: monospace; font-size: 0.85em;">${key.substring(0, 18)}...</td>
+            <td>${escapeHtml(displayName)}</td>
+            <td style="direction: ltr; text-align: right;">${lic.userPhone || '-'}</td>
+            <td>${lic.plan || 'free'}</td>
+            <td>${statusText}</td>
+            <td>${expiryDate}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+    
+    // Render coupons table
+    function renderCoupons(coupons) {
+      const tbody = document.getElementById('couponsBody');
+      const entries = Object.entries(coupons);
+      
+      if (entries.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #888;">אין קופונים</td></tr>';
+        return;
+      }
+      
+      tbody.innerHTML = entries.map(([code, coupon]) => {
+        const discountText = coupon.type === 'percent' ? `${coupon.discount}%` : `₪${coupon.discount}`;
+        const statusText = coupon.active ? '✅ פעיל' : '❌ לא פעיל';
+        
+        return `
+          <tr>
+            <td style="font-family: monospace; font-weight: bold; color: #ffd700;">${code}</td>
+            <td>${discountText}</td>
+            <td>${escapeHtml(coupon.description)}</td>
+            <td>${statusText}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+    
+    // Render games table
+    function renderGames(subscribers) {
+      document.getElementById('gamesLoading').style.display = 'none';
+      
+      const games = [];
+      Object.entries(subscribers).forEach(([userId, sub]) => {
+        if (sub.monitoredGames && sub.monitoredGames.length > 0) {
+          sub.monitoredGames.forEach(game => {
+            games.push({ ...game, subscriber: userId });
+          });
+        }
+      });
+      
+      if (games.length === 0) {
+        document.getElementById('noGames').style.display = 'block';
+        document.getElementById('gamesTable').style.display = 'none';
+        return;
+      }
+      
+      document.getElementById('noGames').style.display = 'none';
+      document.getElementById('gamesTable').style.display = 'table';
+      
+      const tbody = document.getElementById('gamesBody');
+      tbody.innerHTML = games.map(game => {
+        const addedDate = game.addedAt ? new Date(game.addedAt).toLocaleDateString('he-IL') : '-';
+        const hasTickets = game.hasTickets ? '✅ זמין' : '⏳ ממתין';
+        
+        return `
+          <tr>
+            <td>${escapeHtml(game.name || game.opponent || '-')}</td>
+            <td style="direction: ltr; text-align: right;">${game.subscriber}</td>
+            <td>${addedDate}</td>
+            <td>${hasTickets}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+    
+    // Test email
+    async function testEmail() {
+      const email = document.getElementById('testEmail').value;
+      if (!email) { alert('נא להזין אימייל'); return; }
+      
+      document.getElementById('emailResult').innerHTML = '⏳ שולח...';
+      
+      try {
+        const res = await apiCall('/api/test-email', 'POST', { email });
+        document.getElementById('emailResult').innerHTML = res.success 
+          ? '<span style="color: #4ade80;">✅ נשלח בהצלחה!</span>'
+          : '<span style="color: #ff6b6b;">❌ ' + escapeHtml(res.error || 'נכשל') + '</span>';
+      } catch (e) {
+        document.getElementById('emailResult').innerHTML = '<span style="color: #ff6b6b;">❌ שגיאה: ' + escapeHtml(e.message) + '</span>';
+      }
+    }
+    
+    // Test SMS
+    async function testSMS() {
+      const phone = document.getElementById('testPhone').value;
+      if (!phone) { alert('נא להזין טלפון'); return; }
+      
+      document.getElementById('smsResult').innerHTML = '⏳ שולח...';
+      
+      try {
+        const res = await apiCall('/api/test-sms', 'POST', { phone });
+        document.getElementById('smsResult').innerHTML = res.success 
+          ? '<span style="color: #4ade80;">✅ נשלח בהצלחה!</span>'
+          : '<span style="color: #ff6b6b;">❌ ' + escapeHtml(res.error || 'נכשל') + '</span>';
+      } catch (e) {
+        document.getElementById('smsResult').innerHTML = '<span style="color: #ff6b6b;">❌ שגיאה: ' + escapeHtml(e.message) + '</span>';
+      }
+    }
+    
+    // Enable VIP
+    async function enableVip(subscriberId) {
+      if (!confirm(`להפוך את ${subscriberId} ל-VIP?`)) return;
+      
+      try {
+        const res = await apiCall('/api/admin/enable-sms', 'POST', { subscriberId, adminPassword });
+        if (res.success) {
+          alert('✅ VIP הופעל!');
+          loadData();
+        } else {
+          alert('❌ ' + (res.error || 'נכשל'));
+        }
+      } catch (e) {
+        alert('❌ שגיאה: ' + e.message);
+      }
+    }
+    
+    // Delete subscriber
+    async function deleteSubscriber(subscriberId) {
+      if (!confirm(`למחוק את ${subscriberId}?`)) return;
+      
+      try {
+        const res = await apiCall('/api/admin/delete-subscriber', 'POST', { subscriberId, adminPassword });
+        if (res.success) {
+          alert('✅ נמחק!');
+          loadData();
+        } else {
+          alert('❌ ' + (res.error || 'נכשל'));
+        }
+      } catch (e) {
+        alert('❌ שגיאה: ' + e.message);
+      }
+    }
+    
+    // Reset stats
+    async function resetStats() {
+      if (!confirm('לאפס את כל הסטטיסטיקות?')) return;
+      
+      try {
+        const res = await apiCall('/api/admin/reset-stats', 'POST');
+        if (res.success) {
+          alert('✅ אופס!');
+          loadData();
+        } else {
+          alert('❌ נכשל');
+        }
+      } catch (e) {
+        alert('❌ שגיאה: ' + e.message);
+      }
+    }
+    
+    // Refresh data
+    function refreshData() {
+      loadData();
+    }
+    
+    // Tab switching
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        
+        tab.classList.add('active');
+        document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+      });
+    });
+    
+    // Keyboard shortcut to close modal
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeModal();
+    });
+    
+    // Load data on page load
+    loadData();
+    
+    // Auto refresh every 30 seconds
+    setInterval(loadData, 30000);
   </script>
 </body>
 </html>

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Beitar Jerusalem Ticket Notification Server
  * Handles SMS and Email notifications for ticket availability
  * With usage tracking and admin dashboard
@@ -1117,10 +1117,37 @@ app.get('/api/admin/stats', (req, res) => {
   });
 });
 
+// Admin API - Get all data for dashboard
+app.get('/api/admin/data', async (req, res) => {
+  const adminPass = req.query.p || req.query.password || req.headers['x-admin-password'];
+  if (adminPass !== (process.env.ADMIN_PASSWORD || 'BeitarAdmin123!')) {
+    return res.status(401).json({ error: 'Invalid admin password' });
+  }
+  
+  // Get SMS balance
+  const smsBalance = await get019SMSBalance();
+  
+  res.json({
+    usage: data.usage,
+    history: data.usage.history || [],
+    subscribers: data.subscribers || {},
+    licenses: data.licenses || {},
+    coupons: COUPONS,
+    subscriberCount: Object.keys(data.subscribers || {}).filter(k => data.subscribers[k]?.active).length,
+    licenseCount: Object.keys(data.licenses || {}).length,
+    smsBalance: smsBalance,
+    config: {
+      emailConfigured: !!emailTransporter,
+      smsConfigured: !!(process.env.SMS019_TOKEN && process.env.SMS019_USERNAME),
+      smsProvider: '019SMS'
+    }
+  });
+});
+
 // Reset usage stats (admin only)
 app.post('/api/admin/reset-stats', (req, res) => {
   const adminPass = req.headers['x-admin-password'];
-  if (adminPass !== (process.env.ADMIN_PASSWORD || 'Beitar2024$ecure!')) {
+  if (adminPass !== (process.env.ADMIN_PASSWORD || 'BeitarAdmin123!')) {
     return res.status(401).json({ error: 'Invalid admin password' });
   }
   
