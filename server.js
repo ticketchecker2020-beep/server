@@ -1771,7 +1771,21 @@ app.get('/pricing', (req, res) => {
     }
     .extension-link h3 { color: #ffd700; margin-bottom: 15px; }
     .extension-link p { color: #ccc; margin-bottom: 20px; }
-    .footer { text-align: center; margin-top: 40px; color: #666; font-size: 0.9em; }
+    .footer { 
+      text-align: center; 
+      margin-top: 40px; 
+      padding: 30px;
+      background: rgba(255,215,0,0.1);
+      border-radius: 15px;
+      border: 2px solid rgba(255,215,0,0.3);
+    }
+    .footer p { 
+      color: #ffd700; 
+      font-size: 1.4em; 
+      font-weight: bold;
+      text-shadow: 0 0 10px rgba(255,215,0,0.5);
+      margin: 0;
+    }
   </style>
 </head>
 <body>
