@@ -28,9 +28,9 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Server version - UPDATE THIS ON EACH DEPLOY!
-const SERVER_VERSION = '2.2.2';
+const SERVER_VERSION = '2.2.3';
 const VERSION_DATE = '2026-01-22';
-const VERSION_NOTES = 'Fan chants in pricing, black background, admin failure alerts';
+const VERSION_NOTES = 'Highlighted fan chants in pricing footer';
 
 // Data file for fallback storage
 const DATA_FILE = path.join(__dirname, 'data.json');
