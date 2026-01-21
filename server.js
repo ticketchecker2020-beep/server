@@ -117,6 +117,22 @@ const PRICING = {
   yearly: { name: 'SMS שנתי', days: 365, price: 199, smsLimit: 500 }
 };
 
+// Fan chants - random slogans for messages 🎵
+const FAN_CHANTS = [
+  'שבחי ירושלים הלב שלי צועק צהוב שחור',
+  'אוהב מכל הלב אוהב אותך כל כך שזה כואב',
+  'ללב נכנסת התאהבתי בך',
+  'עכשיו עומד כאן מאוהב אריה שואג על החולצה מניף את הצעיף',
+  'לא תצעדי לבד אף פעם רק אותך אני אוהב',
+  'אומרים לי שאני קצת משוגע ככה זה באהבה כשאת בתוך הנשמה',
+  'איתך מהיציע ועד הנצח'
+];
+
+// Get random fan chant
+function getRandomChant() {
+  return FAN_CHANTS[Math.floor(Math.random() * FAN_CHANTS.length)];
+}
+
 // Coupon codes configuration
 const COUPONS = {
   'BEITAR10': { discount: 10, type: 'percent', description: '10% הנחה', active: true },
@@ -895,7 +911,8 @@ app.post('/api/notify', async (req, res) => {
     const opponent = firstGame.name.replace(/בית"ר ירושלים[^-]*-\s*/i, '').replace(/\s*\([^)]*\)/g, '').trim();
     const price = firstGame.price ? ` ${firstGame.price}₪` : '';
     const url = firstGame.url || 'https://www.leaan.co.il';
-    const smsMessage = `🔥 כרטיסים זמינים לבית"ר!\n⚽ VS ${opponent}${price}\n🎟️ היכנסו עכשיו: ${url}\n💛🖤 איתך מהיציע ועד הנצח!`;
+    const chant = getRandomChant();
+    const smsMessage = `🔥 כרטיסים זמינים לבית"ר!\n⚽ VS ${opponent}${price}\n🎟️ היכנסו עכשיו: ${url}\n💛🖤 ${chant}`;
     
     console.log(`SMS (${smsMessage.length} chars): ${smsMessage}`);
     results.sms = await sendSMS(phone, smsMessage);
@@ -3260,6 +3277,7 @@ async function notifyAllSubscribers(games) {
     
     try {
       // Build email HTML
+      const emailChant = getRandomChant();
       const emailHtml = `
         <!DOCTYPE html>
         <html dir="rtl" lang="he">
@@ -3277,8 +3295,8 @@ async function notifyAllSubscribers(games) {
               </div>
             `).join('')}
             
-            <p style="text-align: center; margin-top: 30px; color: #888;">
-              💛🖤 צהוב זה הצבע!<br>
+            <p style="text-align: center; margin-top: 30px; color: #ffd700; font-style: italic;">
+              💛🖤 ${emailChant}<br>
               <a href="https://server-tickets-l0rq.onrender.com/unsubscribe?email=${encodeURIComponent(subscriberId)}" style="color: #666; font-size: 12px;">להסרה מהרשימה</a>
             </p>
           </div>
@@ -3304,7 +3322,8 @@ async function notifyAllSubscribers(games) {
           const opponent = games[0].name.replace(/בית"ר ירושלים[^-]*-\s*/i, '').replace(/\s*\([^)]*\)/g, '').trim();
           const price = games[0].ticketPrice ? ` ${games[0].ticketPrice}₪` : '';
           const url = games[0].ticketUrl || 'https://www.leaan.co.il';
-          const smsText = `🔥 כרטיסים זמינים לבית"ר!\n⚽ VS ${opponent}${price}\n🎟️ היכנסו עכשיו: ${url}\n💛🖤 איתך מהיציע ועד הנצח!`;
+          const chant = getRandomChant();
+          const smsText = `🔥 כרטיסים זמינים לבית"ר!\n⚽ VS ${opponent}${price}\n🎟️ היכנסו עכשיו: ${url}\n💛🖤 ${chant}`;
           const smsSuccess = await sendSMS(subscriber.phone, smsText);
           
           if (smsSuccess) {
