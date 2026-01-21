@@ -2458,6 +2458,8 @@ app.post('/api/create-pending-order', async (req, res) => {
     expiresAt.setDate(expiresAt.getDate() + planInfo.days);
     
     data.licenses[licenseKey] = {
+      key: licenseKey,
+      userName: name || email.split('@')[0],
       plan,
       userEmail: email,
       userPhone: formattedPhone,
@@ -2466,6 +2468,7 @@ app.post('/api/create-pending-order', async (req, res) => {
       expiresAt: expiresAt.toISOString(),
       smsRemaining: planInfo.smsLimit,
       smsLimit: planInfo.smsLimit,
+      usage: { emails: 0, sms: 0 },
       couponUsed: coupon,
       freeFromCoupon: true
     };
@@ -2581,6 +2584,8 @@ app.post('/webhook/paybox', async (req, res) => {
     expiresAt.setDate(expiresAt.getDate() + planConfig.days);
     
     data.licenses[licenseKey] = {
+      key: licenseKey,
+      userName: pendingOrder.name || pendingOrder.email.split('@')[0],
       plan,
       userEmail: pendingOrder.email,
       userPhone: pendingOrder.phone,
@@ -2589,6 +2594,7 @@ app.post('/webhook/paybox', async (req, res) => {
       expiresAt: expiresAt.toISOString(),
       smsRemaining: planConfig.smsLimit,
       smsLimit: planConfig.smsLimit,
+      usage: { emails: 0, sms: 0 },
       payboxTransactionId: transaction_id,
       orderId
     };
@@ -2667,6 +2673,8 @@ app.post('/webhook/paybox', async (req, res) => {
       }
       
       data.licenses[licenseKey] = {
+        key: licenseKey,
+        userName: customer_email.split('@')[0],
         plan,
         userEmail: customer_email,
         userPhone: phone,
@@ -2675,6 +2683,7 @@ app.post('/webhook/paybox', async (req, res) => {
         expiresAt: expiresAt.toISOString(),
         smsRemaining: planConfig.smsLimit,
         smsLimit: planConfig.smsLimit,
+        usage: { emails: 0, sms: 0 },
         payboxTransactionId: transaction_id
       };
       
