@@ -443,19 +443,59 @@ async function sendEmail(to, subject, htmlContent) {
   }
 }
 
-// Send SMS - supports both Inforu (cheap) and Twilio (fallback)
+// Send SMS - supports 019SMS (cheapest), Inforu (cheap) and Twilio (fallback)
 async function sendSMS(to, message) {
-  // Format Israeli phone number
+  // Format Israeli phone number - remove leading 0 for API (format: 5xxxxxxxx)
   let phone = to.replace(/[^\d+]/g, '');
   if (phone.startsWith('+972')) {
-    phone = '0' + phone.substring(4); // Convert to local format for Inforu
-  } else if (!phone.startsWith('0')) {
-    phone = '0' + phone;
+    phone = phone.substring(4); // Remove +972
+  } else if (phone.startsWith('0')) {
+    phone = phone.substring(1); // Remove leading 0
   }
   
-  // Try Inforu first (much cheaper!)
+  // OPTION 1: 019SMS (Cheapest Israeli provider!)
+  if (process.env.SMS019_TOKEN && process.env.SMS019_USERNAME) {
+    try {
+      const xmlData = `<?xml version="1.0" encoding="UTF-8"?>
+<sms>
+  <user>
+    <username>${process.env.SMS019_USERNAME}</username>
+  </user>
+  <source>${process.env.SMS019_SENDER || 'Beitar'}</source>
+  <destinations>
+    <phone>${phone}</phone>
+  </destinations>
+  <message>${message}</message>
+</sms>`;
+      
+      const response = await fetch('https://019sms.co.il/api', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/xml',
+          'Authorization': `Bearer ${process.env.SMS019_TOKEN}`
+        },
+        body: xmlData
+      });
+      
+      const result = await response.text();
+      
+      // Status 0 = success in 019SMS
+      if (result.includes('<status>0</status>')) {
+        console.log(`✅ SMS sent via 019SMS to 0${phone}`);
+        trackUsage('sms', true, { provider: '019sms', to: phone.substring(0, 2) + '***' });
+        return true;
+      } else {
+        console.error(`❌ 019SMS failed:`, result);
+      }
+    } catch (error) {
+      console.error(`❌ 019SMS error:`, error.message);
+    }
+  }
+  
+  // OPTION 2: Inforu (also cheap)
   if (process.env.INFORU_USER && process.env.INFORU_PASSWORD) {
     try {
+      const inforuPhone = '0' + phone; // Inforu needs leading 0
       const inforuUrl = 'https://api.inforu.co.il/SendMessageXml.ashx';
       const xmlData = `
         <Inforu>
@@ -467,7 +507,7 @@ async function sendSMS(to, message) {
             <Message>${message}</Message>
           </Content>
           <Recipients>
-            <PhoneNumber>${phone}</PhoneNumber>
+            <PhoneNumber>${inforuPhone}</PhoneNumber>
           </Recipients>
           <Settings>
             <Sender>${process.env.INFORU_SENDER || 'Beitar'}</Sender>
@@ -484,8 +524,8 @@ async function sendSMS(to, message) {
       const result = await response.text();
       
       if (result.includes('Status>1<') || result.includes('OK')) {
-        console.log(`✅ SMS sent via Inforu to ${phone}`);
-        trackUsage('sms', true, { provider: 'inforu', to: phone.substring(0, 3) + '***' });
+        console.log(`✅ SMS sent via Inforu to ${inforuPhone}`);
+        trackUsage('sms', true, { provider: 'inforu', to: phone.substring(0, 2) + '***' });
         return true;
       } else {
         console.error(`❌ Inforu SMS failed:`, result);
@@ -495,14 +535,10 @@ async function sendSMS(to, message) {
     }
   }
   
-  // Fallback to Twilio if Inforu not configured or failed
+  // OPTION 3: Twilio (expensive fallback)
   if (twilioClient) {
     try {
-      // Convert back to international format for Twilio
-      let twilioPhone = phone;
-      if (phone.startsWith('0')) {
-        twilioPhone = '+972' + phone.substring(1);
-      }
+      const twilioPhone = '+972' + phone;
       
       await twilioClient.messages.create({
         body: message,
