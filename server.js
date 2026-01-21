@@ -1615,6 +1615,27 @@ app.get('/admin', async (req, res) => {
   const balanceCardColor = smsBalance.lowBalance ? '#ff6b6b' : '#4ade80';
   const lowBalanceAlert = smsBalance.lowBalance ? '<div class="alert alert-warning">⚠️ יתרת 019SMS נמוכה! טען יתרה בהקדם.</div>' : '';
   
+  // Coupons list HTML
+  const couponsHtml = Object.entries(COUPONS).map(([code, coupon]) => {
+    const statusClass = coupon.active ? 'active' : 'inactive';
+    const statusText = coupon.active ? '✅ פעיל' : '❌ לא פעיל';
+    const btnClass = coupon.active ? 'btn-danger' : 'btn-success';
+    const btnText = coupon.active ? 'נטרל' : 'הפעל';
+    return `
+      <tr class="${statusClass}">
+        <td style="font-family: monospace; font-weight: bold;">${code}</td>
+        <td>${coupon.description}</td>
+        <td>${coupon.discount}${coupon.type === 'percent' ? '%' : '₪'}</td>
+        <td>${coupon.oneTimeUse ? '🔒 חד פעמי' : '♾️ ללא הגבלה'}</td>
+        <td>${statusText}</td>
+        <td>
+          <button class="btn ${btnClass}" style="padding: 5px 15px; font-size: 0.9em;" 
+                  onclick="toggleCoupon('${code}', ${!coupon.active})">${btnText}</button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+  
   res.send(`
 <!DOCTYPE html>
 <html dir="rtl" lang="he">
@@ -1781,6 +1802,25 @@ app.get('/admin', async (req, res) => {
     </div>
     
     <div class="section">
+      <h2>🎁 קופונים (${Object.keys(COUPONS).length} סה"כ)</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>קוד</th>
+            <th>תיאור</th>
+            <th>הנחה</th>
+            <th>סוג</th>
+            <th>סטטוס</th>
+            <th>פעולה</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${couponsHtml}
+        </tbody>
+      </table>
+    </div>
+    
+    <div class="section">
       <h2>⚡ פעולות מהירות</h2>
       <div class="quick-actions">
         <a href="https://019sms.co.il" target="_blank" class="btn btn-primary">💳 019SMS דשבורד</a>
@@ -1795,6 +1835,26 @@ app.get('/admin', async (req, res) => {
       <p style="margin-top: 10px;">Last update: ${new Date().toLocaleString('he-IL')}</p>
     </div>
   </div>
+  
+  <script>
+    async function toggleCoupon(code, enable) {
+      try {
+        const res = await fetch('/api/admin/coupon/toggle?p=${adminPassword}', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code, active: enable })
+        });
+        const data = await res.json();
+        if (data.success) {
+          location.reload();
+        } else {
+          alert('שגיאה: ' + data.error);
+        }
+      } catch (e) {
+        alert('שגיאה בשינוי סטטוס קופון');
+      }
+    }
+  </script>
 </body>
 </html>
   `);
@@ -2637,6 +2697,30 @@ app.get('/api/admin/coupons', (req, res) => {
   }
   
   res.json(COUPONS);
+});
+
+// Toggle coupon status (admin only)
+app.post('/api/admin/coupon/toggle', (req, res) => {
+  const adminPass = req.query.p || req.query.password || req.headers['x-admin-password'];
+  if (adminPass !== process.env.ADMIN_PASSWORD && adminPass !== 'BeitarAdmin123!') {
+    return res.status(401).json({ error: 'Invalid admin password' });
+  }
+  
+  const { code, active } = req.body;
+  
+  if (!code || !COUPONS[code.toUpperCase()]) {
+    return res.status(404).json({ error: 'קופון לא נמצא' });
+  }
+  
+  COUPONS[code.toUpperCase()].active = active;
+  
+  console.log(`🎁 Coupon ${code} ${active ? 'enabled' : 'disabled'} by admin`);
+  
+  res.json({ 
+    success: true, 
+    message: `קופון ${code} ${active ? 'הופעל' : 'נוטרל'} בהצלחה`,
+    coupon: COUPONS[code.toUpperCase()]
+  });
 });
 
 // Create new license (admin only)
