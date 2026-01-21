@@ -221,14 +221,20 @@ body {
   background: rgba(255, 215, 0, 0.2);
 }
 
-.terms-link {
+.terms-link, .link-text {
   color: #555;
   font-size: 10px;
-  text-decoration: none;
+  text-decoration: underline;
+  cursor: pointer;
 }
 
-.terms-link:hover {
+.terms-link:hover, .link-text:hover {
   color: #888;
+}
+
+.link-text {
+  color: #ffd700;
+  font-size: inherit;
 }
 
 .support-link {
