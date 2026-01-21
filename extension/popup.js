@@ -335,8 +335,11 @@ class BeitarPopup {
     // Update SMS display
     this.updateSmsDisplay();
     
-    // Update check interval
-    document.getElementById('checkInterval').value = this.state.checkInterval;
+    // Update check interval (if element exists)
+    const checkIntervalEl = document.getElementById('checkInterval');
+    if (checkIntervalEl) {
+      checkIntervalEl.value = this.state.checkInterval;
+    }
   }
 
   updateSmsDisplay() {
@@ -655,7 +658,7 @@ class BeitarPopup {
   setupMainScreenListeners() {
     // Go to Site button
     document.getElementById('goToSiteBtn')?.addEventListener('click', () => {
-      chrome.tabs.create({ url: 'https://www.beitarfc.co.il/tickets' });
+      chrome.tabs.create({ url: 'https://www.beitarfc.co.il/%D7%9E%D7%A9%D7%97%D7%A7%D7%99%D7%9D/' });
     });
     
     // Quick actions

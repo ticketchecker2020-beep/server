@@ -99,7 +99,12 @@ class GameSelector {
         console.error('Error adding game:', error);
         btn.innerHTML = '❌ שגיאה';
         btn.disabled = false;
-        this.showNotification('שגיאה בהוספת משחק', 'error');
+        // Check if it's a context invalidated error
+        if (error.message && error.message.includes('refresh')) {
+          this.showNotification('רענן את הדף ונסה שוב', 'error');
+        } else {
+          this.showNotification('שגיאה בהוספת משחק', 'error');
+        }
       }
     });
 
@@ -184,6 +189,12 @@ class GameSelector {
 
   async addGameToMonitor(gameInfo) {
     return new Promise((resolve, reject) => {
+      // Check if extension context is still valid
+      if (!chrome.runtime || !chrome.runtime.sendMessage) {
+        reject(new Error('Extension context invalidated. Please refresh the page.'));
+        return;
+      }
+      
       chrome.runtime.sendMessage(
         { action: 'addGame', game: gameInfo },
         (response) => {

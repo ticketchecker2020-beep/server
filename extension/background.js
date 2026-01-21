@@ -71,23 +71,64 @@ class TicketMonitor {
     
     // Check if game already exists
     if (!monitoredGames.find(g => g.id === game.id)) {
-      monitoredGames.push({
+      const newGame = {
         ...game,
         addedAt: Date.now(),
         hasTickets: false,
         isSoldOut: false,
         lastChecked: null
-      });
+      };
+      
+      monitoredGames.push(newGame);
       await chrome.storage.local.set({ monitoredGames });
       console.log('Game added to monitoring:', game.name);
+      
+      // Also sync to server
+      await this.syncGameToServer(newGame, 'add');
+    }
+  }
+  
+  async syncGameToServer(game, action = 'add') {
+    try {
+      // Get subscriber ID (email)
+      const { userEmails, userEmail } = await chrome.storage.local.get(['userEmails', 'userEmail']);
+      const subscriberId = userEmails?.[0] || userEmail;
+      
+      if (!subscriberId) {
+        console.log('No subscriber ID found, skipping server sync');
+        return;
+      }
+      
+      const endpoint = action === 'add' ? '/api/add-game' : '/api/remove-game';
+      const body = action === 'add' 
+        ? { subscriberId, game }
+        : { subscriberId, gameId: game.id };
+      
+      const response = await fetch(`${DEFAULT_SERVER_URL}${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      
+      const result = await response.json();
+      console.log(`Server sync (${action}):`, result);
+    } catch (error) {
+      console.error('Failed to sync game to server:', error);
     }
   }
 
   async removeMonitoredGame(gameId) {
     const { monitoredGames = [] } = await chrome.storage.local.get('monitoredGames');
+    const gameToRemove = monitoredGames.find(g => g.id === gameId);
     const updatedGames = monitoredGames.filter(g => g.id !== gameId);
     await chrome.storage.local.set({ monitoredGames: updatedGames });
     console.log('Game removed from monitoring:', gameId);
+    
+    // Sync to server
+    if (gameToRemove) {
+      await this.syncGameToServer(gameToRemove, 'remove');
+    }
+  }
   }
 
   async checkTickets() {

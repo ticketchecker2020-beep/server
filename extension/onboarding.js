@@ -1,6 +1,6 @@
 // Onboarding page script
 
-const BEITAR_SITE = 'https://www.beitarfc.co.il/tickets';
+const BEITAR_SITE = 'https://www.beitarfc.co.il/%D7%9E%D7%A9%D7%97%D7%A7%D7%99%D7%9D/';
 
 // Force GIF to loop by reloading it
 const gif = document.getElementById('pinGif');
