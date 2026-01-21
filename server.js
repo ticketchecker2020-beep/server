@@ -871,7 +871,7 @@ app.post('/api/test-sms', async (req, res) => {
     return res.status(400).json({ error: 'Phone required' });
   }
 
-  const success = await sendSMS(phone, '🎟️ בדיקה - Beitar Ticket Monitor פעיל! תקבל התראה כשכרטיסים יהיו זמינים.');
+  const success = await sendSMS(phone, '✅ הודעת בדיקה בלבד! המערכת פעילה ומנטרת. זו לא התראה על כרטיסים - כשיהיו כרטיסים תקבל הודעה נפרדת.');
 
   res.json({ success, message: success ? 'Test SMS sent!' : 'Failed to send test SMS' });
 });
