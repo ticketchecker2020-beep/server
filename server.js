@@ -1107,9 +1107,57 @@ app.post('/api/test-sms', async (req, res) => {
   res.json({ success, message: success ? 'Test SMS sent!' : 'Failed to send test SMS' });
 });
 
-// Admin Dashboard (served as static file)
+// Home page - simple landing page
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
+  res.send(`
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🎟️ Beitar Ticket Monitor</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { 
+      font-family: 'Segoe UI', Arial, sans-serif; 
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      min-height: 100vh; 
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .container { text-align: center; padding: 40px; }
+    h1 { color: #ffd700; font-size: 2.5em; margin-bottom: 20px; }
+    p { color: #aaa; font-size: 1.2em; margin-bottom: 30px; }
+    .btn {
+      display: inline-block;
+      padding: 15px 30px;
+      background: #ffd700;
+      color: #000;
+      text-decoration: none;
+      border-radius: 10px;
+      font-weight: bold;
+      margin: 10px;
+      transition: transform 0.2s;
+    }
+    .btn:hover { transform: scale(1.05); }
+    .btn-secondary { background: rgba(255,255,255,0.1); color: #fff; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎟️ Beitar Ticket Monitor</h1>
+    <p>מערכת מעקב כרטיסים לבית"ר ירושלים</p>
+    <div>
+      <a href="/pricing" class="btn">💰 מחירים</a>
+      <a href="/health" class="btn btn-secondary">📊 סטטוס</a>
+    </div>
+    <p style="margin-top: 40px; font-size: 0.9em;">💛🖤 צהוב זה הצבע!</p>
+  </div>
+</body>
+</html>
+  `);
 });
 
 // Admin API - Get all data for dashboard (used by new dashboard.html)
