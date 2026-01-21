@@ -895,7 +895,7 @@ app.post('/api/notify', async (req, res) => {
     const opponent = firstGame.name.replace(/בית"ר ירושלים[^-]*-\s*/i, '').replace(/\s*\([^)]*\)/g, '').trim();
     const price = firstGame.price ? ` ${firstGame.price}₪` : '';
     const url = firstGame.url || 'https://www.leaan.co.il';
-    const smsMessage = `🔥 כרטיסים לבית"ר!\n⚽ VS ${opponent}${price}\n🎟️ לרכישה: ${url}\n💛🖤 צהוב זה הצבע!`;
+    const smsMessage = `🔥 כרטיסים זמינים לבית"ר!\n⚽ VS ${opponent}${price}\n🎟️ היכנס עכשיו: ${url}\n💛🖤 איתך מהיציע ועד הנצח!`;
     
     console.log(`SMS (${smsMessage.length} chars): ${smsMessage}`);
     results.sms = await sendSMS(phone, smsMessage);
@@ -3254,7 +3254,7 @@ async function notifyAllSubscribers(games) {
           const opponent = games[0].name.replace(/בית"ר ירושלים[^-]*-\s*/i, '').replace(/\s*\([^)]*\)/g, '').trim();
           const price = games[0].ticketPrice ? ` ${games[0].ticketPrice}₪` : '';
           const url = games[0].ticketUrl || 'https://www.leaan.co.il';
-          const smsText = `🔥 כרטיסים לבית"ר!\n⚽ VS ${opponent}${price}\n🎟️ לרכישה: ${url}\n💛🖤 צהוב זה הצבע!`;
+          const smsText = `🔥 כרטיסים זמינים לבית"ר!\n⚽ VS ${opponent}${price}\n🎟️ היכנס עכשיו: ${url}\n💛🖤 איתך מהיציע ועד הנצח!`;
           const smsSuccess = await sendSMS(subscriber.phone, smsText);
           
           if (smsSuccess) {
