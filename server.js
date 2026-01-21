@@ -506,6 +506,74 @@ function get019SMSStatus() {
   };
 }
 
+// Get 019SMS Balance from API
+async function get019SMSBalance() {
+  if (!process.env.SMS019_TOKEN || !process.env.SMS019_USERNAME) {
+    return {
+      balance: null,
+      configured: false,
+      error: 'SMS לא מוגדר',
+      lowBalance: false
+    };
+  }
+  
+  try {
+    const xmlData = `<?xml version="1.0" encoding="UTF-8"?>
+<balance>
+    <user>
+        <username>${process.env.SMS019_USERNAME}</username>
+    </user>
+</balance>`;
+    
+    const response = await fetch('https://019sms.co.il/api', {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/xml',
+        'Authorization': `Bearer ${process.env.SMS019_TOKEN}`
+      },
+      body: xmlData
+    });
+    
+    const result = await response.text();
+    
+    // Parse XML response
+    const balanceMatch = result.match(/<balance>(\d+(?:\.\d+)?)<\/balance>/);
+    const statusMatch = result.match(/<status>(\d+)<\/status>/);
+    const messageMatch = result.match(/<message>(.*?)<\/message>/);
+    
+    if (statusMatch && statusMatch[1] === '0' && balanceMatch) {
+      const balance = parseFloat(balanceMatch[1]);
+      // Assuming ~0.04₪ per SMS
+      const estimatedSmsRemaining = Math.floor(balance / 0.04);
+      
+      return {
+        balance: balance,
+        estimatedSmsRemaining: estimatedSmsRemaining,
+        currency: 'ILS',
+        configured: true,
+        lowBalance: balance < 10, // Less than 10₪ = low balance
+        message: messageMatch ? messageMatch[1] : null
+      };
+    } else {
+      console.error('❌ 019SMS balance check failed:', result);
+      return {
+        balance: null,
+        configured: true,
+        error: messageMatch ? messageMatch[1] : 'שגיאה בבדיקת יתרה',
+        lowBalance: false
+      };
+    }
+  } catch (error) {
+    console.error('❌ 019SMS balance error:', error.message);
+    return {
+      balance: null,
+      configured: true,
+      error: error.message,
+      lowBalance: false
+    };
+  }
+}
+
 // Check SMS status (for monitoring)
 function checkSMSStatus() {
   return get019SMSStatus();
@@ -556,24 +624,155 @@ app.get('/api/usage', (req, res) => {
   });
 });
 
-// Subscribe for notifications
-app.post('/api/subscribe', (req, res) => {
+// ============================================
+// SUBSCRIBER MANAGEMENT (Server-Side Monitoring)
+// ============================================
+
+// Register for notifications (supports multiple emails)
+app.post('/api/register', async (req, res) => {
+  const { emails, phone, licenseKey } = req.body;
+
+  // Support both single email and array
+  const emailList = Array.isArray(emails) ? emails : (emails ? [emails] : []);
+  
+  if (emailList.length === 0) {
+    return res.status(400).json({ error: 'At least one email is required' });
+  }
+
+  // Validate emails
+  for (const email of emailList) {
+    if (!email || !email.includes('@')) {
+      return res.status(400).json({ error: `Invalid email: ${email}` });
+    }
+  }
+
+  // Use first email as primary ID
+  const subscriberId = emailList[0].toLowerCase();
+  
+  // Check SMS license if provided
+  let smsEnabled = false;
+  if (licenseKey && phone) {
+    const licenseCheck = isLicenseValid(licenseKey);
+    smsEnabled = licenseCheck.valid && licenseCheck.canSendSms;
+  }
+
+  // Store subscriber
+  data.subscribers[subscriberId] = {
+    emails: emailList.map(e => e.toLowerCase()),
+    phone: phone || null,
+    licenseKey: licenseKey || null,
+    smsEnabled,
+    active: true,
+    registeredAt: new Date().toISOString(),
+    lastNotified: null
+  };
+
+  await saveData();
+  
+  console.log(`📝 New subscriber: ${subscriberId} (${emailList.length} emails${smsEnabled ? ', SMS enabled' : ''})`);
+
+  res.json({
+    success: true,
+    message: 'Registered successfully! You will receive alerts when tickets are available.',
+    subscriberId,
+    emailCount: emailList.length,
+    smsEnabled
+  });
+});
+
+// Unregister from notifications
+app.post('/api/unregister', async (req, res) => {
+  const { email } = req.body;
+  const subscriberId = email?.toLowerCase();
+
+  if (data.subscribers[subscriberId]) {
+    delete data.subscribers[subscriberId];
+    await saveData();
+    res.json({ success: true, message: 'Unregistered successfully' });
+  } else {
+    res.status(404).json({ error: 'Subscriber not found' });
+  }
+});
+
+// Get subscription status
+app.get('/api/subscription-status', (req, res) => {
+  const { email } = req.query;
+  const subscriberId = email?.toLowerCase();
+  
+  if (!subscriberId) {
+    return res.status(400).json({ error: 'Email required' });
+  }
+
+  const subscriber = data.subscribers[subscriberId];
+  
+  if (subscriber && subscriber.active) {
+    res.json({
+      registered: true,
+      emails: subscriber.emails,
+      smsEnabled: subscriber.smsEnabled,
+      registeredAt: subscriber.registeredAt,
+      lastNotified: subscriber.lastNotified
+    });
+  } else {
+    res.json({ registered: false });
+  }
+});
+
+// Update subscription (emails, phone, license)
+app.post('/api/update-subscription', async (req, res) => {
+  const { currentEmail, emails, phone, licenseKey } = req.body;
+  const subscriberId = currentEmail?.toLowerCase();
+  
+  if (!data.subscribers[subscriberId]) {
+    return res.status(404).json({ error: 'Subscriber not found' });
+  }
+
+  const emailList = Array.isArray(emails) ? emails : (emails ? [emails] : data.subscribers[subscriberId].emails);
+  
+  // Check SMS license if provided
+  let smsEnabled = false;
+  if (licenseKey && phone) {
+    const licenseCheck = isLicenseValid(licenseKey);
+    smsEnabled = licenseCheck.valid && licenseCheck.canSendSms;
+  }
+
+  data.subscribers[subscriberId].emails = emailList.map(e => e.toLowerCase());
+  if (phone !== undefined) data.subscribers[subscriberId].phone = phone;
+  if (licenseKey !== undefined) data.subscribers[subscriberId].licenseKey = licenseKey;
+  data.subscribers[subscriberId].smsEnabled = smsEnabled;
+
+  await saveData();
+  
+  res.json({
+    success: true,
+    message: 'Subscription updated',
+    emailCount: emailList.length,
+    smsEnabled
+  });
+});
+
+// Legacy subscribe endpoint (for backward compatibility)
+app.post('/api/subscribe', async (req, res) => {
   const { email, phone, games } = req.body;
 
   if (!email && !phone) {
     return res.status(400).json({ error: 'Email or phone required' });
   }
 
-  const subscriberId = email || phone;
+  const subscriberId = email?.toLowerCase() || phone;
   
-  subscribers.set(subscriberId, {
-    email,
-    phone,
-    games: games || [],
-    subscribedAt: new Date().toISOString()
-  });
+  data.subscribers[subscriberId] = {
+    emails: email ? [email.toLowerCase()] : [],
+    phone: phone || null,
+    licenseKey: null,
+    smsEnabled: false,
+    active: true,
+    registeredAt: new Date().toISOString(),
+    lastNotified: null
+  };
 
-  console.log(`📝 New subscriber: ${subscriberId} (${games?.length || 0} games)`);
+  await saveData();
+  console.log(`📝 New subscriber (legacy): ${subscriberId}`);
 
   res.json({
     success: true,
@@ -582,32 +781,23 @@ app.post('/api/subscribe', (req, res) => {
   });
 });
 
-// Unsubscribe
-app.post('/api/unsubscribe', (req, res) => {
+// Legacy unsubscribe
+app.post('/api/unsubscribe', async (req, res) => {
   const { email, phone } = req.body;
-  const subscriberId = email || phone;
+  const subscriberId = email?.toLowerCase() || phone;
 
-  if (subscribers.has(subscriberId)) {
-    subscribers.delete(subscriberId);
+  if (data.subscribers[subscriberId]) {
+    delete data.subscribers[subscriberId];
+    await saveData();
     res.json({ success: true, message: 'Unsubscribed' });
   } else {
     res.status(404).json({ error: 'Subscriber not found' });
   }
 });
 
-// Update games
+// Update games (legacy - now we monitor all Beitar games)
 app.post('/api/update-games', (req, res) => {
-  const { email, phone, games } = req.body;
-  const subscriberId = email || phone;
-
-  if (subscribers.has(subscriberId)) {
-    const sub = subscribers.get(subscriberId);
-    sub.games = games;
-    subscribers.set(subscriberId, sub);
-    res.json({ success: true, message: 'Games updated' });
-  } else {
-    res.status(404).json({ error: 'Subscriber not found' });
-  }
+  res.json({ success: true, message: 'Server now monitors all Beitar games automatically' });
 });
 
 // Send notification (called by extension)
@@ -749,30 +939,43 @@ app.post('/api/notify', async (req, res) => {
 
 // Test email endpoint
 app.post('/api/test-email', async (req, res) => {
-  const { email } = req.body;
+  const { email, emails } = req.body;
   
-  if (!email) {
+  // Support both single email and array of emails
+  const emailList = emails || (email ? [email] : []);
+  
+  if (emailList.length === 0) {
     return res.status(400).json({ error: 'Email required' });
   }
 
-  const success = await sendEmail(
-    email,
-    '✅ הודעת בדיקה בלבד - Beitar Ticket Monitor',
-    `
-      <div dir="rtl" style="font-family: Arial; padding: 20px; background: #f5f5f5; border-radius: 10px;">
-        <h2 style="color: #28a745;">✅ הודעת בדיקה בלבד!</h2>
-        <div style="background: #fff3cd; border: 1px solid #ffc107; padding: 15px; border-radius: 5px; margin: 15px 0;">
-          <strong>⚠️ שים לב:</strong> זו הודעת בדיקה בלבד - אין כרטיסים זמינים כרגע!
+  let successCount = 0;
+  
+  for (const emailAddr of emailList) {
+    const success = await sendEmail(
+      emailAddr,
+      '✅ הודעת בדיקה בלבד - Beitar Ticket Monitor',
+      `
+        <div dir="rtl" style="font-family: Arial; padding: 20px; background: #f5f5f5; border-radius: 10px;">
+          <h2 style="color: #28a745;">✅ הודעת בדיקה בלבד!</h2>
+          <div style="background: #fff3cd; border: 1px solid #ffc107; padding: 15px; border-radius: 5px; margin: 15px 0;">
+            <strong>⚠️ שים לב:</strong> זו הודעת בדיקה בלבד - אין כרטיסים זמינים כרגע!
+          </div>
+          <p>אם אתה רואה הודעה זו, המערכת עובדת כראוי והתראות אימייל מוגדרות נכון. 🎉</p>
+          <p style="margin-top: 20px; padding: 10px; background: #e8f5e9; border-radius: 5px;">
+            📬 כשיהיו כרטיסים זמינים באמת - תקבל הודעה נפרדת עם קישור לרכישה.
+          </p>
         </div>
-        <p>אם אתה רואה הודעה זו, המערכת עובדת כראוי והתראות אימייל מוגדרות נכון. 🎉</p>
-        <p style="margin-top: 20px; padding: 10px; background: #e8f5e9; border-radius: 5px;">
-          📬 כשיהיו כרטיסים זמינים באמת - תקבל הודעה נפרדת עם קישור לרכישה.
-        </p>
-      </div>
-    `
-  );
+      `
+    );
+    if (success) successCount++;
+  }
 
-  res.json({ success, message: success ? 'Test email sent!' : 'Failed to send test email' });
+  res.json({ 
+    success: successCount > 0, 
+    message: successCount > 0 
+      ? `Test email sent to ${successCount}/${emailList.length} addresses!` 
+      : 'Failed to send test email' 
+  });
 });
 
 // Test SMS endpoint
@@ -1370,29 +1573,47 @@ app.get('/admin', async (req, res) => {
   const licenseCount = Object.keys(data.licenses).length;
   const activeLicenses = Object.values(data.licenses).filter(l => l.active && new Date(l.expiresAt) > new Date()).length;
   const subscriberCount = Object.keys(data.subscribers || {}).filter(e => data.subscribers[e]?.active).length;
-  const twilioBalance = await getTwilioBalance();
+  const smsBalance = await get019SMSBalance();
   
-  // License list HTML
+  // License list HTML - show userName if exists, otherwise email, otherwise '-'
   const licensesHtml = Object.entries(data.licenses).slice(0, 50).map(([key, lic]) => {
-    const isExpired = new Date(lic.expiresAt) < new Date();
+    const isExpired = lic.expiresAt && new Date(lic.expiresAt) < new Date();
     const statusClass = isExpired ? 'expired' : (lic.active ? 'active' : 'inactive');
     const statusText = isExpired ? '⏰ פג תוקף' : (lic.active ? '✅ פעיל' : '❌ לא פעיל');
+    const displayName = lic.userName || lic.userEmail || '-';
+    const expiryDate = lic.expiresAt ? new Date(lic.expiresAt).toLocaleDateString('he-IL') : '∞';
     return `
       <tr class="${statusClass}">
-        <td style="font-family: monospace; font-size: 0.85em;">${key}</td>
-        <td>${lic.userEmail || '-'}</td>
+        <td style="font-family: monospace; font-size: 0.85em;">${key.substring(0, 12)}...</td>
+        <td>${displayName}</td>
+        <td>${lic.userPhone || '-'}</td>
         <td>${lic.plan || 'free'}</td>
-        <td>${lic.smsRemaining || 0}</td>
         <td>${statusText}</td>
-        <td>${new Date(lic.expiresAt).toLocaleDateString('he-IL')}</td>
+        <td>${expiryDate}</td>
       </tr>
     `;
   }).join('');
   
-  const balanceCardBg = twilioBalance.lowBalance ? 'rgba(255,107,107,0.2)' : 'rgba(74,222,128,0.2)';
-  const balanceCardBorder = twilioBalance.lowBalance ? '#ff6b6b' : '#4ade80';
-  const balanceCardColor = twilioBalance.lowBalance ? '#ff6b6b' : '#4ade80';
-  const lowBalanceAlert = twilioBalance.lowBalance ? '<div class="alert alert-warning">⚠️ יתרת Twilio נמוכה! טען יתרה בהקדם.</div>' : '';
+  // Subscribers list HTML
+  const subscribersHtml = Object.entries(data.subscribers || {}).slice(0, 50).map(([key, sub]) => {
+    const emailCount = (sub.emails || []).length;
+    const primaryEmail = sub.emails?.[0] || key;
+    return `
+      <tr class="${sub.active ? 'active' : 'inactive'}">
+        <td>${primaryEmail}</td>
+        <td>${emailCount}</td>
+        <td>${sub.phone || '-'}</td>
+        <td>${sub.smsEnabled ? '✅ כן' : '❌ לא'}</td>
+        <td>${sub.active ? '✅ פעיל' : '❌ לא פעיל'}</td>
+        <td>${new Date(sub.registeredAt).toLocaleDateString('he-IL')}</td>
+      </tr>
+    `;
+  }).join('');
+  
+  const balanceCardBg = smsBalance.lowBalance ? 'rgba(255,107,107,0.2)' : 'rgba(74,222,128,0.2)';
+  const balanceCardBorder = smsBalance.lowBalance ? '#ff6b6b' : '#4ade80';
+  const balanceCardColor = smsBalance.lowBalance ? '#ff6b6b' : '#4ade80';
+  const lowBalanceAlert = smsBalance.lowBalance ? '<div class="alert alert-warning">⚠️ יתרת 019SMS נמוכה! טען יתרה בהקדם.</div>' : '';
   
   res.send(`
 <!DOCTYPE html>
@@ -1480,6 +1701,9 @@ app.get('/admin', async (req, res) => {
     .alert-success { background: rgba(74,222,128,0.2); color: #4ade80; }
     
     .quick-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+    .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
+    .tab { padding: 10px 20px; border-radius: 10px; cursor: pointer; background: rgba(255,255,255,0.1); color: #fff; border: none; }
+    .tab.active { background: #ffd700; color: #000; }
   </style>
 </head>
 <body>
@@ -1490,10 +1714,10 @@ app.get('/admin', async (req, res) => {
     
     <div class="stats-grid">
       <div class="stat-card balance-card">
-        <div class="stat-value">$${twilioBalance.balance?.toFixed(2) || '?'}</div>
-        <div class="stat-label">💰 יתרת Twilio</div>
+        <div class="stat-value">${smsBalance.balance !== null ? smsBalance.balance.toFixed(0) + '₪' : '?'}</div>
+        <div class="stat-label">💰 יתרת 019SMS</div>
         <div style="margin-top: 10px; font-size: 0.9em; color: #888;">
-          ~${twilioBalance.estimatedSmsRemaining || '?'} SMS נותרו
+          ~${smsBalance.estimatedSmsRemaining || '?'} SMS נותרו
         </div>
       </div>
       
@@ -1504,7 +1728,7 @@ app.get('/admin', async (req, res) => {
       
       <div class="stat-card">
         <div class="stat-value">${subscriberCount}</div>
-        <div class="stat-label">📧 מנויי אימייל</div>
+        <div class="stat-label">📧 מנויים פעילים</div>
       </div>
       
       <div class="stat-card">
@@ -1519,14 +1743,33 @@ app.get('/admin', async (req, res) => {
     </div>
     
     <div class="section">
-      <h2>🔑 רשיונות (${licenseCount} סה"כ)</h2>
+      <h2>📧 מנויים (${subscriberCount} פעילים)</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>אימייל ראשי</th>
+            <th>כמות אימיילים</th>
+            <th>טלפון</th>
+            <th>SMS</th>
+            <th>סטטוס</th>
+            <th>הרשמה</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${subscribersHtml || '<tr><td colspan="6" style="text-align:center;">אין מנויים</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+    
+    <div class="section">
+      <h2>🔑 רשיונות SMS (${licenseCount} סה"כ)</h2>
       <table>
         <thead>
           <tr>
             <th>מפתח</th>
-            <th>אימייל</th>
+            <th>שם/אימייל</th>
+            <th>טלפון</th>
             <th>תוכנית</th>
-            <th>SMS נותרו</th>
             <th>סטטוס</th>
             <th>תפוגה</th>
           </tr>
@@ -1540,7 +1783,7 @@ app.get('/admin', async (req, res) => {
     <div class="section">
       <h2>⚡ פעולות מהירות</h2>
       <div class="quick-actions">
-        <a href="https://console.twilio.com/us1/billing" target="_blank" class="btn btn-primary">💳 טען יתרת Twilio</a>
+        <a href="https://019sms.co.il" target="_blank" class="btn btn-primary">💳 019SMS דשבורד</a>
         <a href="/api/monitor/status" target="_blank" class="btn btn-success">📊 סטטוס מוניטורינג</a>
         <a href="/" class="btn btn-primary">🏠 דף הבית</a>
         <a href="/pricing" class="btn btn-primary">💰 דף מחירים</a>
@@ -2795,20 +3038,23 @@ async function checkTicketsAndNotify() {
 // Notify all registered subscribers
 async function notifyAllSubscribers(games) {
   const subscribers = data.subscribers || {};
-  const subscriberCount = Object.keys(subscribers).length;
+  const subscriberIds = Object.keys(subscribers).filter(id => subscribers[id].active);
   
-  if (subscriberCount === 0) {
-    console.log('📭 No subscribers to notify');
+  if (subscriberIds.length === 0) {
+    console.log('📭 No active subscribers to notify');
     return;
   }
   
-  console.log(`📧 Notifying ${subscriberCount} subscribers...`);
+  console.log(`📧 Notifying ${subscriberIds.length} subscribers...`);
   
-  for (const [email, subscriber] of Object.entries(subscribers)) {
-    if (!subscriber.active) continue;
+  let emailsSent = 0;
+  let smsSent = 0;
+  
+  for (const subscriberId of subscriberIds) {
+    const subscriber = subscribers[subscriberId];
     
     try {
-      // Send email (free for all)
+      // Build email HTML
       const emailHtml = `
         <!DOCTYPE html>
         <html dir="rtl" lang="he">
@@ -2828,34 +3074,52 @@ async function notifyAllSubscribers(games) {
             
             <p style="text-align: center; margin-top: 30px; color: #888;">
               💛🖤 צהוב זה הצבע!<br>
-              <a href="https://server-tickets-l0rq.onrender.com/unsubscribe?email=${encodeURIComponent(email)}" style="color: #666; font-size: 12px;">להסרה מהרשימה</a>
+              <a href="https://server-tickets-l0rq.onrender.com/unsubscribe?email=${encodeURIComponent(subscriberId)}" style="color: #666; font-size: 12px;">להסרה מהרשימה</a>
             </p>
           </div>
         </body>
         </html>
       `;
       
-      await sendEmail(email, '🎟️ כרטיסים זמינים לבית"ר ירושלים!', emailHtml);
-      console.log(`  ✅ Email sent to ${email}`);
-      
-      // Send SMS if subscriber has phone AND license
-      if (subscriber.phone && subscriber.licenseKey) {
-        const license = data.licenses[subscriber.licenseKey];
-        if (license && license.active && license.smsRemaining > 0) {
-          const smsText = `בית"ר: כרטיסים זמינים! ${games[0].name} - ${games[0].ticketUrl}`;
-          await sendSMS(subscriber.phone, smsText);
-          
-          // Decrease SMS count
-          data.licenses[subscriber.licenseKey].smsRemaining--;
-          saveData();
-          console.log(`  ✅ SMS sent to ${subscriber.phone}`);
+      // Send to ALL emails in the subscriber's list
+      const emailList = subscriber.emails || [subscriberId];
+      for (const email of emailList) {
+        const success = await sendEmail(email, '🎟️ כרטיסים זמינים לבית"ר ירושלים!', emailHtml);
+        if (success) {
+          emailsSent++;
+          console.log(`  ✅ Email sent to ${email}`);
         }
       }
       
+      // Send SMS if enabled
+      if (subscriber.smsEnabled && subscriber.phone && subscriber.licenseKey) {
+        const licenseCheck = isLicenseValid(subscriber.licenseKey);
+        if (licenseCheck.valid && licenseCheck.canSendSms) {
+          const smsText = `בית"ר: כרטיסים זמינים! ${games[0].name} - ${games[0].ticketUrl}`;
+          const smsSuccess = await sendSMS(subscriber.phone, smsText);
+          
+          if (smsSuccess) {
+            smsSent++;
+            // Update license usage
+            if (data.licenses[subscriber.licenseKey]) {
+              data.licenses[subscriber.licenseKey].usage = data.licenses[subscriber.licenseKey].usage || { sms: 0 };
+              data.licenses[subscriber.licenseKey].usage.sms++;
+            }
+            console.log(`  ✅ SMS sent to ${subscriber.phone}`);
+          }
+        }
+      }
+      
+      // Update last notified
+      data.subscribers[subscriberId].lastNotified = new Date().toISOString();
+      
     } catch (error) {
-      console.error(`  ❌ Failed to notify ${email}:`, error.message);
+      console.error(`  ❌ Failed to notify ${subscriberId}:`, error.message);
     }
   }
+  
+  await saveData();
+  console.log(`📊 Notification complete: ${emailsSent} emails, ${smsSent} SMS sent`);
 }
 
 // Subscribe endpoint - register for email notifications
