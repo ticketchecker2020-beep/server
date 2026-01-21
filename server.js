@@ -344,6 +344,11 @@ function trackUsage(type, success, details = {}) {
     type,
     success,
     timestamp: new Date().toISOString(),
+    to: details.to || null,
+    message: details.message || null,
+    subject: details.subject || null,
+    provider: details.provider || null,
+    error: details.error || null,
     ...details
   };
   
@@ -477,11 +482,11 @@ async function sendSMS(to, message) {
     // Status 0 = success in 019SMS
     if (result.includes('<status>0</status>')) {
       console.log(`✅ SMS sent via 019SMS to 0${phone}`);
-      trackUsage('sms', true, { provider: '019sms', to: phone.substring(0, 2) + '***' });
+      trackUsage('sms', true, { provider: '019sms', to: '0' + phone.substring(0, 2) + '****' + phone.slice(-2), message: message });
       return true;
     } else {
       console.error(`❌ 019SMS failed:`, result);
-      trackUsage('sms', false, { error: result });
+      trackUsage('sms', false, { provider: '019sms', to: '0' + phone, error: result });
       return false;
     }
   } catch (error) {
@@ -885,18 +890,14 @@ app.post('/api/notify', async (req, res) => {
 
   // Send SMS - ONLY for paid plans with SMS remaining
   if (phone && canSendSms) {
-    // Short format: "🎟️ בית"ר VS חיפה 95₪ leaan.co.il"
-    const shortGames = games.slice(0, 2).map(g => {
-      // Extract opponent name only
-      const opponent = g.name.replace(/בית"ר ירושלים[^-]*-\s*/i, '').trim();
-      const price = g.price ? ` ${g.price}₪` : '';
-      return `${opponent}${price}`;
-    }).join(', ');
+    // Build engaging SMS with full link (max 201 chars for 1 SMS segment in Hebrew)
+    const firstGame = games[0];
+    const opponent = firstGame.name.replace(/בית"ר ירושלים[^-]*-\s*/i, '').replace(/\s*\([^)]*\)/g, '').trim();
+    const price = firstGame.price ? ` ${firstGame.price}₪` : '';
+    const url = firstGame.url || 'https://www.leaan.co.il';
+    const smsMessage = `🔥 כרטיסים לבית"ר!\n⚽ VS ${opponent}${price}\n🎟️ לרכישה: ${url}\n💛🖤 צהוב זה הצבע!`;
     
-    // Keep SMS under 70 chars if possible (1 segment), or under 134 (2 segments)
-    const smsMessage = `🎟️ בית"ר: ${shortGames}\nleaan.co.il`;
-    
-    console.log(`SMS length: ${smsMessage.length} chars`);
+    console.log(`SMS (${smsMessage.length} chars): ${smsMessage}`);
     results.sms = await sendSMS(phone, smsMessage);
     
     // Update license usage if SMS was sent
@@ -1636,6 +1637,27 @@ app.get('/admin', async (req, res) => {
     `;
   }).join('');
   
+  // History list HTML - last 20 entries with full details
+  const historyHtml = (data.usage.history || []).slice(0, 30).map((entry, idx) => {
+    const icon = entry.type === 'sms' ? '📱' : '📧';
+    const statusIcon = entry.success ? '✅' : '❌';
+    const time = new Date(entry.timestamp).toLocaleString('he-IL');
+    const to = entry.to || '-';
+    const msgPreview = entry.message ? (entry.message.length > 30 ? entry.message.substring(0, 30) + '...' : entry.message) : (entry.subject || '-');
+    const fullMsg = entry.message || entry.subject || '';
+    const escapedMsg = fullMsg.replace(/'/g, "\\'").replace(/\\n/g, '\\\\n');
+    
+    return `
+      <tr onclick="showMessageDetail('${icon} ${entry.type.toUpperCase()}', '${to}', '${time}', '${escapedMsg}')" style="cursor: pointer;">
+        <td>${icon} ${entry.type.toUpperCase()}</td>
+        <td>${statusIcon}</td>
+        <td>${to}</td>
+        <td title="${fullMsg}">${msgPreview}</td>
+        <td>${time}</td>
+      </tr>
+    `;
+  }).join('');
+  
   res.send(`
 <!DOCTYPE html>
 <html dir="rtl" lang="he">
@@ -1821,6 +1843,25 @@ app.get('/admin', async (req, res) => {
     </div>
     
     <div class="section">
+      <h2>📜 היסטוריית הודעות (${(data.usage.history || []).length} אחרונות)</h2>
+      <p style="color: #888; margin-bottom: 15px;">לחץ על שורה לראות פרטים מלאים</p>
+      <table>
+        <thead>
+          <tr>
+            <th>סוג</th>
+            <th>סטטוס</th>
+            <th>נשלח ל</th>
+            <th>תוכן</th>
+            <th>זמן</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${historyHtml || '<tr><td colspan="5" style="text-align:center;">אין היסטוריה</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+    
+    <div class="section">
       <h2>⚡ פעולות מהירות</h2>
       <div class="quick-actions">
         <a href="https://019sms.co.il" target="_blank" class="btn btn-primary">💳 019SMS דשבורד</a>
@@ -1836,7 +1877,37 @@ app.get('/admin', async (req, res) => {
     </div>
   </div>
   
+  <!-- Message Detail Modal -->
+  <div id="messageModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 1000; align-items: center; justify-content: center;">
+    <div style="background: #1a1a2e; border: 2px solid #ffd700; border-radius: 15px; max-width: 500px; width: 90%; padding: 25px; position: relative;">
+      <button onclick="closeModal()" style="position: absolute; top: 10px; left: 10px; background: none; border: none; color: #fff; font-size: 24px; cursor: pointer;">&times;</button>
+      <h3 id="modalTitle" style="color: #ffd700; margin-bottom: 15px;"></h3>
+      <div style="margin-bottom: 10px;"><strong>נשלח ל:</strong> <span id="modalTo"></span></div>
+      <div style="margin-bottom: 10px;"><strong>זמן:</strong> <span id="modalTime"></span></div>
+      <div style="margin-top: 15px; background: #111; padding: 15px; border-radius: 10px; white-space: pre-wrap; font-family: monospace; direction: ltr; text-align: left;">
+        <strong style="color: #ffd700;">תוכן ההודעה:</strong><br><br>
+        <span id="modalMessage" style="color: #4ade80;"></span>
+      </div>
+    </div>
+  </div>
+  
   <script>
+    function showMessageDetail(type, to, time, message) {
+      document.getElementById('modalTitle').textContent = type;
+      document.getElementById('modalTo').textContent = to;
+      document.getElementById('modalTime').textContent = time;
+      document.getElementById('modalMessage').textContent = message.replace(/\\\\n/g, '\\n');
+      document.getElementById('messageModal').style.display = 'flex';
+    }
+    
+    function closeModal() {
+      document.getElementById('messageModal').style.display = 'none';
+    }
+    
+    document.getElementById('messageModal').addEventListener('click', function(e) {
+      if (e.target === this) closeModal();
+    });
+    
     async function toggleCoupon(code, enable) {
       try {
         const res = await fetch('/api/admin/coupon/toggle?p=${adminPassword}', {
@@ -3179,7 +3250,11 @@ async function notifyAllSubscribers(games) {
       if (subscriber.smsEnabled && subscriber.phone && subscriber.licenseKey) {
         const licenseCheck = isLicenseValid(subscriber.licenseKey);
         if (licenseCheck.valid && licenseCheck.canSendSms) {
-          const smsText = `בית"ר: כרטיסים זמינים! ${games[0].name} - ${games[0].ticketUrl}`;
+          // Build engaging SMS with full link (max 201 chars for 1 SMS segment in Hebrew)
+          const opponent = games[0].name.replace(/בית"ר ירושלים[^-]*-\s*/i, '').replace(/\s*\([^)]*\)/g, '').trim();
+          const price = games[0].ticketPrice ? ` ${games[0].ticketPrice}₪` : '';
+          const url = games[0].ticketUrl || 'https://www.leaan.co.il';
+          const smsText = `🔥 כרטיסים לבית"ר!\n⚽ VS ${opponent}${price}\n🎟️ לרכישה: ${url}\n💛🖤 צהוב זה הצבע!`;
           const smsSuccess = await sendSMS(subscriber.phone, smsText);
           
           if (smsSuccess) {
