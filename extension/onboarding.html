@@ -129,14 +129,16 @@
     .gif-container {
       background: rgba(0,0,0,0.3);
       border-radius: 12px;
-      padding: 15px;
+      padding: 20px;
       margin: 20px 0;
     }
     
     .gif-container img {
-      max-width: 100%;
+      width: 100%;
+      min-width: 500px;
       border-radius: 8px;
-      border: 1px solid #444;
+      border: 2px solid #ffd700;
+      box-shadow: 0 5px 20px rgba(0,0,0,0.5);
     }
     
     .arrow-hint {
@@ -228,25 +230,14 @@
       <img src="images/pin-extension.gif" alt="איך להצמיד את התוסף" id="pinGif">
     </div>
     
-    <script>
-      // Force GIF to loop by reloading it
-      const gif = document.getElementById('pinGif');
-      const gifSrc = gif.src;
-      
-      // Reload GIF every 9 seconds (adjust based on your GIF length)
-      setInterval(() => {
-        gif.src = '';
-        gif.src = gifSrc + '?t=' + Date.now();
-      }, 9000);
-    </script>
-    
     <div class="arrow-hint">⬆️</div>
     
     <p class="steps-title">אחרי שהצמדת, לחץ על האייקון כדי להתחיל!</p>
     
-    <a href="#" class="btn" onclick="window.close()">הבנתי! ✓</a>
+    <button class="btn" id="closeBtn">הבנתי! ✓</button>
     
-    <p class="footer-text">לא תפספס יותר אף משחק של בית״ר! ⚽</p>
+    <p class="footer-text">לא תפספס יותר אף משחק של בית"ר! ⚽</p>
   </div>
+  <script src="onboarding.js"></script>
 </body>
 </html>
