@@ -757,12 +757,17 @@ app.post('/api/test-email', async (req, res) => {
 
   const success = await sendEmail(
     email,
-    '🎟️ בדיקת התראות - Beitar Ticket Monitor',
+    '✅ הודעת בדיקה בלבד - Beitar Ticket Monitor',
     `
-      <div dir="rtl" style="font-family: Arial; padding: 20px;">
-        <h2 style="color: #ffd700;">בדיקת מערכת ההתראות</h2>
-        <p>אם אתה רואה הודעה זו, התראות האימייל עובדות כראוי! 🎉</p>
-        <p>תקבל התראה כשכרטיסים יהיו זמינים לרכישה.</p>
+      <div dir="rtl" style="font-family: Arial; padding: 20px; background: #f5f5f5; border-radius: 10px;">
+        <h2 style="color: #28a745;">✅ הודעת בדיקה בלבד!</h2>
+        <div style="background: #fff3cd; border: 1px solid #ffc107; padding: 15px; border-radius: 5px; margin: 15px 0;">
+          <strong>⚠️ שים לב:</strong> זו הודעת בדיקה בלבד - אין כרטיסים זמינים כרגע!
+        </div>
+        <p>אם אתה רואה הודעה זו, המערכת עובדת כראוי והתראות אימייל מוגדרות נכון. 🎉</p>
+        <p style="margin-top: 20px; padding: 10px; background: #e8f5e9; border-radius: 5px;">
+          📬 כשיהיו כרטיסים זמינים באמת - תקבל הודעה נפרדת עם קישור לרכישה.
+        </p>
       </div>
     `
   );
