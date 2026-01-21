@@ -653,6 +653,11 @@ class BeitarPopup {
   }
 
   setupMainScreenListeners() {
+    // Go to Site button
+    document.getElementById('goToSiteBtn')?.addEventListener('click', () => {
+      chrome.tabs.create({ url: 'https://www.beitarfc.co.il/tickets' });
+    });
+    
     // Quick actions
     document.getElementById('checkNowBtn')?.addEventListener('click', () => this.checkNow());
     document.getElementById('testAlertBtn')?.addEventListener('click', () => this.testAlert());
