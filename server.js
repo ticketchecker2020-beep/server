@@ -3231,6 +3231,48 @@ app.put('/api/admin/licenses/:key', (req, res) => {
   res.json({ success: true, license: data.licenses[key] });
 });
 
+// Fix old licenses - add missing key and userName (admin only)
+app.post('/api/admin/fix-licenses', async (req, res) => {
+  const adminPass = req.headers['x-admin-password'];
+  if (adminPass !== (process.env.ADMIN_PASSWORD || 'BeitarAdmin123!')) {
+    return res.status(401).json({ error: 'Invalid admin password' });
+  }
+  
+  let fixed = 0;
+  
+  for (const [licenseKey, license] of Object.entries(data.licenses)) {
+    let needsSave = false;
+    
+    // Add missing key field
+    if (!license.key) {
+      license.key = licenseKey;
+      needsSave = true;
+    }
+    
+    // Add missing userName field
+    if (!license.userName) {
+      license.userName = license.userEmail ? license.userEmail.split('@')[0] : 'Unknown';
+      needsSave = true;
+    }
+    
+    // Add missing usage field
+    if (!license.usage) {
+      license.usage = { emails: 0, sms: 0 };
+      needsSave = true;
+    }
+    
+    if (needsSave) {
+      fixed++;
+    }
+  }
+  
+  if (fixed > 0) {
+    await saveData();
+  }
+  
+  res.json({ success: true, message: `Fixed ${fixed} licenses`, total: Object.keys(data.licenses).length });
+});
+
 // Delete license (admin only)
 app.delete('/api/admin/licenses/:key', (req, res) => {
   const adminPass = req.headers['x-admin-password'];
