@@ -28,9 +28,9 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Server version - UPDATE THIS ON EACH DEPLOY!
-const SERVER_VERSION = '2.1.1';
+const SERVER_VERSION = '2.1.2';
 const VERSION_DATE = '2026-01-22';
-const VERSION_NOTES = 'Fixed admin test email/SMS endpoints';
+const VERSION_NOTES = 'Changed background to black, removed status button';
 
 // Data file for fallback storage
 const DATA_FILE = path.join(__dirname, 'data.json');
@@ -1126,7 +1126,7 @@ app.get('/', (req, res) => {
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { 
       font-family: 'Segoe UI', Arial, sans-serif; 
-      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      background: #000000;
       min-height: 100vh; 
       color: #fff;
       display: flex;
@@ -1148,7 +1148,6 @@ app.get('/', (req, res) => {
       transition: transform 0.2s;
     }
     .btn:hover { transform: scale(1.05); }
-    .btn-secondary { background: rgba(255,255,255,0.1); color: #fff; }
   </style>
 </head>
 <body>
@@ -1157,7 +1156,6 @@ app.get('/', (req, res) => {
     <p>מערכת מעקב כרטיסים לבית"ר ירושלים</p>
     <div>
       <a href="/pricing" class="btn">💰 מחירים</a>
-      <a href="/health" class="btn btn-secondary">📊 סטטוס</a>
     </div>
     <p style="margin-top: 40px; font-size: 0.9em;">💛🖤 צהוב זה הצבע!</p>
   </div>
@@ -1632,7 +1630,7 @@ app.get('/pricing', (req, res) => {
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { 
       font-family: 'Segoe UI', Arial, sans-serif; 
-      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      background: #000000;
       min-height: 100vh; 
       color: #fff;
       padding: 20px;
