@@ -402,8 +402,13 @@
     </div>
     
     <div class="footer">
-      <p>💛🖤 בית"ר ירושלים - Admin Dashboard v2.0</p>
-      <p style="margin-top: 5px;">עדכון אחרון: <span id="lastUpdate">-</span></p>
+      <p>💛🖤 בית"ר ירושלים - Admin Dashboard</p>
+      <p style="margin-top: 5px;">
+        <strong>גרסת שרת:</strong> <span id="serverVersion" style="color: #4ade80;">טוען...</span> 
+        (<span id="versionDate">-</span>)
+      </p>
+      <p style="margin-top: 3px; font-size: 0.85em; color: #888;" id="versionNotes"></p>
+      <p style="margin-top: 10px;">עדכון אחרון: <span id="lastUpdate">-</span></p>
     </div>
   </div>
   
@@ -485,6 +490,13 @@
         
         // Games
         renderGames(adminData.subscribers || {});
+        
+        // Update version info
+        if (adminData.version) {
+          document.getElementById('serverVersion').textContent = adminData.version.server || '?';
+          document.getElementById('versionDate').textContent = adminData.version.date || '-';
+          document.getElementById('versionNotes').textContent = adminData.version.notes || '';
+        }
         
         // Update timestamp
         document.getElementById('lastUpdate').textContent = new Date().toLocaleString('he-IL');

@@ -27,6 +27,11 @@ if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Server version - UPDATE THIS ON EACH DEPLOY!
+const SERVER_VERSION = '2.1.0';
+const VERSION_DATE = '2026-01-22';
+const VERSION_NOTES = 'Fixed dashboard security, added version tracking';
+
 // Data file for fallback storage
 const DATA_FILE = path.join(__dirname, 'data.json');
 const REDIS_KEY = 'beitar:data';
@@ -1183,6 +1188,11 @@ app.get('/api/admin/data', async (req, res) => {
       emailConfigured: !!emailTransporter,
       smsConfigured: !!(process.env.SMS019_TOKEN && process.env.SMS019_USERNAME),
       smsProvider: '019SMS'
+    },
+    version: {
+      server: SERVER_VERSION,
+      date: VERSION_DATE,
+      notes: VERSION_NOTES
     }
   });
 });
