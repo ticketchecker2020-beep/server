@@ -1,0 +1,131 @@
+/* Content script styles for beitarfc.co.il */
+
+/* Monitor button - positioned at TOP RIGHT corner */
+.beitar-monitor-btn {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  left: auto;
+  background: linear-gradient(135deg, #ffd700 0%, #ffb700 100%);
+  color: #1a1a2e;
+  border: none;
+  border-radius: 15px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: bold;
+  cursor: pointer;
+  font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+  box-shadow: 0 2px 8px rgba(255, 215, 0, 0.3);
+  transition: all 0.3s ease;
+  z-index: 1000;
+  direction: rtl;
+  white-space: nowrap;
+}
+
+.beitar-monitor-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(255, 215, 0, 0.5);
+}
+
+.beitar-monitor-btn:active {
+  transform: translateY(0);
+}
+
+.beitar-monitor-btn.monitoring {
+  background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+  color: white;
+  cursor: default;
+}
+
+.beitar-monitor-btn:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+/* Status indicator */
+.beitar-monitor-indicator {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  color: #ffd700;
+  padding: 12px 20px;
+  border-radius: 30px;
+  font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+  font-size: 14px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  z-index: 10000;
+  transition: all 0.5s ease;
+  border: 2px solid #ffd700;
+  direction: rtl;
+}
+
+.beitar-monitor-indicator .indicator-content {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.beitar-monitor-indicator .indicator-icon {
+  font-size: 18px;
+}
+
+.beitar-monitor-indicator.hidden {
+  opacity: 0;
+  transform: translateY(20px);
+  pointer-events: none;
+}
+
+/* Notification toast */
+.beitar-notification {
+  position: fixed;
+  bottom: 80px;
+  right: 20px;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  z-index: 10001;
+  transform: translateX(100%);
+  opacity: 0;
+  transition: all 0.3s ease;
+  direction: rtl;
+}
+
+.beitar-notification.show {
+  transform: translateX(0);
+  opacity: 1;
+}
+
+.beitar-notification.success {
+  background: #4CAF50;
+  color: white;
+  box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
+}
+
+.beitar-notification.error {
+  background: #f44336;
+  color: white;
+  box-shadow: 0 4px 12px rgba(244, 67, 54, 0.4);
+}
+
+.beitar-notification.info {
+  background: #2196F3;
+  color: white;
+  box-shadow: 0 4px 12px rgba(33, 150, 243, 0.4);
+}
+
+/* Animation for button */
+@keyframes pulse {
+  0%, 100% {
+    box-shadow: 0 2px 8px rgba(255, 215, 0, 0.3);
+  }
+  50% {
+    box-shadow: 0 2px 16px rgba(255, 215, 0, 0.6);
+  }
+}
+
+.beitar-monitor-btn:not(.monitoring):not(:disabled) {
+  animation: pulse 2s infinite;
+}

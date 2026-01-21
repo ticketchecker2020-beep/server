@@ -1,0 +1,10 @@
+{
+  "extension_name": {
+    "message": "Beitar Ticket Monitor",
+    "description": "Name of the extension"
+  },
+  "extension_description": {
+    "message": "מעקב אחר כרטיסים למשחקי בית״ר ירושלים - קבל התראות כשכרטיסים זמינים",
+    "description": "Description of the extension"
+  }
+}

@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+  <meta charset="UTF-8">
+  <title>דמו - אשף + מסך ראשי</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    body {
+      font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+      width: 380px;
+      min-height: 520px;
+      background: #000;
+      color: #fff;
+      padding: 16px;
+    }
+    
+    /* ========== WIZARD STYLES ========== */
+    .wizard-container { text-align: center; }
+    
+    .wizard-header {
+      background: linear-gradient(135deg, #ffd700, #ffcc00);
+      padding: 15px;
+      border-radius: 12px;
+      margin-bottom: 15px;
+    }
+    
+    .wizard-header img {
+      width: 50px; height: 50px;
+      border-radius: 50%;
+      border: 3px solid #000;
+    }
+    
+    .wizard-header h1 { color: #000; font-size: 18px; margin: 8px 0 2px; }
+    .wizard-header p { color: #333; font-size: 12px; }
+    
+    .progress-bar {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+    
+    .progress-step {
+      width: 35px; height: 35px;
+      border-radius: 50%;
+      background: #333;
+      color: #666;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 14px;
+      transition: all 0.3s;
+    }
+    
+    .progress-step.active {
+      background: #ffd700;
+      color: #000;
+      transform: scale(1.1);
+      box-shadow: 0 0 15px rgba(255, 215, 0, 0.5);
+    }
+    
+    .progress-step.done {
+      background: #4CAF50;
+      color: #fff;
+    }
+    
+    .step {
+      display: none;
+      animation: fadeIn 0.3s ease;
+    }
+    
+    .step.active { display: block; }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .step-icon { font-size: 40px; margin-bottom: 10px; }
+    .step h2 { color: #ffd700; font-size: 20px; margin-bottom: 8px; }
+    .step p { color: #aaa; font-size: 13px; margin-bottom: 15px; line-height: 1.5; }
+    
+    .input-group { margin-bottom: 15px; }
+    
+    .input-group input, .input-group select {
+      width: 100%;
+      padding: 12px;
+      font-size: 15px;
+      border: 2px solid #333;
+      border-radius: 8px;
+      background: #111;
+      color: #fff;
+      text-align: center;
+    }
+    
+    .input-group input:focus { outline: none; border-color: #ffd700; }
+    .input-hint { font-size: 10px; color: #666; margin-top: 5px; }
+    
+    .btn {
+      padding: 12px 30px;
+      font-size: 14px;
+      font-weight: bold;
+      border: none;
+      border-radius: 20px;
+      cursor: pointer;
+      transition: all 0.3s;
+      margin: 5px;
+    }
+    
+    .btn-primary {
+      background: linear-gradient(135deg, #ffd700, #ffcc00);
+      color: #000;
+    }
+    
+    .btn-primary:hover {
+      transform: scale(1.05);
+      box-shadow: 0 5px 20px rgba(255, 215, 0, 0.4);
+    }
+    
+    .btn-secondary {
+      background: transparent;
+      color: #888;
+      border: 1px solid #444;
+    }
+    
+    .choice-buttons {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      margin: 15px 0;
+    }
+    
+    .choice-btn {
+      flex: 1;
+      padding: 15px 10px;
+      border: 2px solid #333;
+      border-radius: 12px;
+      background: #111;
+      cursor: pointer;
+      transition: all 0.3s;
+      text-align: center;
+    }
+    
+    .choice-btn:hover { border-color: #ffd700; }
+    .choice-btn.selected { border-color: #ffd700; background: rgba(255, 215, 0, 0.1); }
+    .choice-btn .icon { font-size: 25px; margin-bottom: 5px; }
+    .choice-btn .title { font-size: 13px; font-weight: bold; color: #fff; }
+    .choice-btn .subtitle { font-size: 10px; color: #888; }
+    .choice-btn .subtitle.free { color: #4CAF50; }
+    
+    .skip-link { color: #666; font-size: 11px; text-decoration: none; display: block; margin-top: 15px; }
+    .skip-link:hover { color: #ffd700; }
+    
+    /* SMS setup options */
+    .sms-options { margin-top: 15px; }
+    
+    .sms-option {
+      padding: 12px;
+      border: 1px solid #333;
+      border-radius: 8px;
+      margin-bottom: 10px;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    
+    .sms-option:hover { border-color: #ffd700; }
+    .sms-option.selected { border-color: #ffd700; background: rgba(255, 215, 0, 0.1); }
+    .sms-option-title { font-size: 13px; font-weight: bold; margin-bottom: 3px; }
+    .sms-option-desc { font-size: 11px; color: #888; }
+    
+    /* ========== MAIN SCREEN STYLES ========== */
+    .main-screen { display: none; }
+    .main-screen.active { display: block; }
+    
+    .main-header {
+      background: linear-gradient(135deg, #ffd700, #ffcc00);
+      padding: 12px;
+      border-radius: 10px;
+      margin-bottom: 15px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .main-header img { width: 40px; height: 40px; border-radius: 50%; border: 2px solid #000; }
+    .main-header-text h1 { color: #000; font-size: 16px; }
+    .main-header-text p { color: #333; font-size: 11px; }
+    
+    .status-card {
+      background: #111;
+      border: 2px solid #ffd700;
+      border-radius: 10px;
+      padding: 12px;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .status-dot {
+      width: 12px; height: 12px;
+      background: #4CAF50;
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    
+    .status-text { color: #ffd700; font-weight: bold; font-size: 14px; }
+    
+    .settings-section {
+      background: #111;
+      border-radius: 10px;
+      padding: 15px;
+      margin-bottom: 12px;
+    }
+    
+    .settings-section h3 {
+      color: #ffd700;
+      font-size: 13px;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #333;
+    }
+    
+    .setting-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid #222;
+    }
+    
+    .setting-item:last-child { border-bottom: none; }
+    
+    .setting-info { flex: 1; }
+    .setting-label { font-size: 13px; color: #fff; margin-bottom: 2px; }
+    .setting-value { font-size: 11px; color: #888; }
+    .setting-value.active { color: #4CAF50; }
+    .setting-value.inactive { color: #ff6b6b; }
+    
+    .setting-action {
+      padding: 6px 12px;
+      font-size: 11px;
+      border-radius: 15px;
+      border: none;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    
+    .setting-action.edit {
+      background: #333;
+      color: #fff;
+    }
+    
+    .setting-action.upgrade {
+      background: #ffd700;
+      color: #000;
+      font-weight: bold;
+    }
+    
+    .setting-action.cancel {
+      background: transparent;
+      color: #ff6b6b;
+      border: 1px solid #ff6b6b;
+    }
+    
+    .setting-action:hover { opacity: 0.8; }
+    
+    /* Quick actions */
+    .quick-actions {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    
+    .quick-btn {
+      flex: 1;
+      padding: 12px;
+      background: #111;
+      border: 1px solid #333;
+      border-radius: 8px;
+      color: #fff;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.3s;
+      text-align: center;
+    }
+    
+    .quick-btn:hover { border-color: #ffd700; }
+    .quick-btn .icon { font-size: 20px; display: block; margin-bottom: 5px; }
+    
+    /* Footer */
+    .main-footer {
+      text-align: center;
+      font-size: 11px;
+      color: #666;
+      padding-top: 10px;
+    }
+    
+    /* Modal */
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.9);
+      z-index: 100;
+      padding: 20px;
+      overflow-y: auto;
+    }
+    
+    .modal.active { display: block; }
+    
+    .modal-content {
+      background: #111;
+      border: 2px solid #ffd700;
+      border-radius: 15px;
+      padding: 20px;
+      margin-top: 30px;
+      text-align: center;
+    }
+    
+    .modal-close {
+      position: absolute;
+      top: 15px;
+      left: 15px;
+      font-size: 24px;
+      color: #888;
+      cursor: pointer;
+      background: none;
+      border: none;
+    }
+    
+    .modal-close:hover { color: #fff; }
+  </style>
+</head>
+<body>
+
+  <!-- ========== WIZARD ========== -->
+  <div class="wizard-container" id="wizard">
+    <div class="wizard-header">
+      <img src="icons/icon128.png" alt="בית״ר">
+      <h1>מעקב כרטיסים</h1>
+      <p>בית״ר ירושלים 🖤💛</p>
+    </div>
+    
+    <div class="progress-bar" id="progressBar">
+      <div class="progress-step active" data-step="1">1</div>
+      <div class="progress-step" data-step="2">2</div>
+      <div class="progress-step" data-step="3">3</div>
+      <div class="progress-step" data-step="4">4</div>
+    </div>
+    
+    <!-- Step 1: Welcome -->
+    <div class="step active" data-step="1">
+      <div class="step-icon">👋</div>
+      <h2>ברוכים הבאים!</h2>
+      <p>
+        קבל התראה מיידית ברגע שכרטיסים למשחקי בית״ר יהיו זמינים.
+        <br>לעולם לא תפספס עוד משחק! ⚽
+      </p>
+      <button class="btn btn-primary" onclick="nextStep()">בואו נתחיל! 🚀</button>
+    </div>
+    
+    <!-- Step 2: Email -->
+    <div class="step" data-step="2">
+      <div class="step-icon">📧</div>
+      <h2>לאן לשלוח התראות?</h2>
+      <p>הזן את כתובת האימייל שלך</p>
+      
+      <div class="input-group">
+        <input type="email" id="wizardEmail" placeholder="your@email.com" dir="ltr">
+        <p class="input-hint">🔒 לא נעביר לאף גורם אחר</p>
+      </div>
+      
+      <button class="btn btn-primary" onclick="nextStep()">המשך →</button>
+    </div>
+    
+    <!-- Step 3: SMS Choice -->
+    <div class="step" data-step="3">
+      <div class="step-icon">📱</div>
+      <h2>רוצה גם SMS?</h2>
+      <p>התראות SMS מגיעות מהר יותר ישירות לנייד</p>
+      
+      <div class="choice-buttons">
+        <div class="choice-btn" onclick="selectPlan('email')" id="planEmail">
+          <div class="icon">📧</div>
+          <div class="title">רק אימייל</div>
+          <div class="subtitle free">✓ חינם לנצח!</div>
+        </div>
+        <div class="choice-btn" onclick="selectPlan('sms')" id="planSms">
+          <div class="icon">📱</div>
+          <div class="title">אימייל + SMS</div>
+          <div class="subtitle">29₪/חודש</div>
+        </div>
+      </div>
+      
+      <button class="btn btn-primary" onclick="nextStep()">המשך →</button>
+    </div>
+    
+    <!-- Step 3.5: SMS Setup (conditional) -->
+    <div class="step" data-step="3.5">
+      <div class="step-icon">🔑</div>
+      <h2>הגדרת SMS</h2>
+      
+      <div class="sms-options">
+        <div class="sms-option" onclick="selectSmsOption('existing')" id="smsExisting">
+          <div class="sms-option-title">📋 יש לי כבר מפתח</div>
+          <div class="sms-option-desc">רכשתי בעבר או קיבלתי קוד</div>
+        </div>
+        <div class="sms-option" onclick="selectSmsOption('buy')" id="smsBuy">
+          <div class="sms-option-title">💳 רכישה חדשה</div>
+          <div class="sms-option-desc">29₪ לחודש - התראות ללא הגבלה</div>
+        </div>
+      </div>
+      
+      <!-- Enter existing key -->
+      <div id="existingKeySection" style="display: none; margin-top: 15px;">
+        <div class="input-group">
+          <input type="text" id="wizardLicenseKey" placeholder="BEITAR-XXXX-XXXX-XXXX" dir="ltr">
+        </div>
+        <div class="input-group">
+          <input type="tel" id="wizardPhone" placeholder="050-1234567" dir="ltr">
+        </div>
+      </div>
+      
+      <!-- Buy section -->
+      <div id="buySection" style="display: none; margin-top: 15px;">
+        <p style="font-size: 12px; color: #aaa; margin-bottom: 10px;">
+          לחץ לרכישה מאובטחת ב-PayBox
+        </p>
+        <button class="btn btn-primary" onclick="window.open('https://links.payboxapp.com/IdiXnIQ13Zb', '_blank')">
+          💳 רכישה - 29₪
+        </button>
+        <p style="font-size: 10px; color: #666; margin-top: 10px;">
+          לאחר הרכישה תקבל מפתח באימייל
+        </p>
+      </div>
+      
+      <br>
+      <button class="btn btn-primary" onclick="nextStep()" id="smsNextBtn" style="display: none;">המשך →</button>
+      <a href="#" class="skip-link" onclick="skipSms()">אולי אחר כך →</a>
+    </div>
+    
+    <!-- Step 4: Done -->
+    <div class="step" data-step="4">
+      <div class="step-icon">🎉</div>
+      <h2>מעולה, סיימנו!</h2>
+      
+      <div style="background: rgba(76, 175, 80, 0.2); border: 1px solid #4CAF50; border-radius: 10px; padding: 12px; margin: 15px 0;">
+        <p style="color: #4CAF50; font-size: 12px; margin: 0;">✅ ההתראות הוגדרו בהצלחה!</p>
+      </div>
+      
+      <p style="font-size: 12px;">
+        🔄 בדיקה אוטומטית כל 5 דקות<br>
+        📬 התראה מיידית כשיש כרטיסים<br>
+        🎟️ קישור ישיר לרכישה
+      </p>
+      
+      <button class="btn btn-primary" onclick="finishWizard()">למסך הראשי ✓</button>
+    </div>
+  </div>
+
+  <!-- ========== MAIN SCREEN ========== -->
+  <div class="main-screen" id="mainScreen">
+    <div class="main-header">
+      <img src="icons/icon128.png" alt="בית״ר">
+      <div class="main-header-text">
+        <h1>מעקב כרטיסים</h1>
+        <p>בית״ר ירושלים</p>
+      </div>
+    </div>
+    
+    <div class="status-card">
+      <div class="status-dot"></div>
+      <span class="status-text">🟢 פעיל ומנטר</span>
+    </div>
+    
+    <!-- Quick Actions -->
+    <div class="quick-actions">
+      <button class="quick-btn" onclick="checkNow()">
+        <span class="icon">🔄</span>
+        בדוק עכשיו
+      </button>
+      <button class="quick-btn" onclick="testAlert()">
+        <span class="icon">🔔</span>
+        בדיקת התראה
+      </button>
+    </div>
+    
+    <!-- Settings -->
+    <div class="settings-section">
+      <h3>⚙️ הגדרות התראות</h3>
+      
+      <!-- Email Setting -->
+      <div class="setting-item">
+        <div class="setting-info">
+          <div class="setting-label">📧 אימייל</div>
+          <div class="setting-value active" id="mainEmailValue">nadav@example.com</div>
+        </div>
+        <button class="setting-action edit" onclick="openModal('editEmail')">שנה</button>
+      </div>
+      
+      <!-- SMS Setting -->
+      <div class="setting-item" id="smsSettingItem">
+        <div class="setting-info">
+          <div class="setting-label">📱 SMS</div>
+          <div class="setting-value inactive" id="mainSmsValue">לא פעיל</div>
+        </div>
+        <button class="setting-action upgrade" onclick="openModal('addSms')" id="smsActionBtn">הוסף SMS</button>
+      </div>
+    </div>
+    
+    <!-- Check Interval -->
+    <div class="settings-section">
+      <h3>⏱️ תדירות בדיקה</h3>
+      <div class="input-group">
+        <select id="checkInterval" style="text-align: right;">
+          <option value="1">כל דקה</option>
+          <option value="5" selected>כל 5 דקות</option>
+          <option value="15">כל 15 דקות</option>
+          <option value="30">כל 30 דקות</option>
+        </select>
+      </div>
+    </div>
+    
+    <div class="main-footer">
+      בדיקה אחרונה: <span id="lastCheckTime">עכשיו</span>
+    </div>
+  </div>
+
+  <!-- ========== MODALS ========== -->
+  
+  <!-- Edit Email Modal -->
+  <div class="modal" id="editEmailModal">
+    <button class="modal-close" onclick="closeModal('editEmail')">✕</button>
+    <div class="modal-content">
+      <div class="step-icon">📧</div>
+      <h2>שינוי אימייל</h2>
+      <div class="input-group" style="margin: 20px 0;">
+        <input type="email" id="newEmail" placeholder="אימייל חדש" dir="ltr">
+      </div>
+      <button class="btn btn-primary" onclick="saveEmail()">💾 שמור</button>
+      <br>
+      <button class="btn btn-secondary" onclick="closeModal('editEmail')" style="margin-top: 10px;">ביטול</button>
+    </div>
+  </div>
+  
+  <!-- Add SMS Modal -->
+  <div class="modal" id="addSmsModal">
+    <button class="modal-close" onclick="closeModal('addSms')">✕</button>
+    <div class="modal-content">
+      <div class="step-icon">📱</div>
+      <h2>הוספת SMS</h2>
+      <p style="color: #aaa; font-size: 12px; margin-bottom: 15px;">
+        קבל התראות ישירות לנייד!<br>29₪ לחודש - ללא הגבלה
+      </p>
+      
+      <div class="sms-options">
+        <div class="sms-option" onclick="selectModalSmsOption('existing')" id="modalSmsExisting">
+          <div class="sms-option-title">📋 יש לי מפתח</div>
+        </div>
+        <div class="sms-option" onclick="selectModalSmsOption('buy')" id="modalSmsBuy">
+          <div class="sms-option-title">💳 רכישה חדשה</div>
+        </div>
+      </div>
+      
+      <div id="modalExistingSection" style="display: none; margin-top: 15px;">
+        <div class="input-group">
+          <input type="text" id="modalLicenseKey" placeholder="BEITAR-XXXX-XXXX-XXXX" dir="ltr">
+        </div>
+        <div class="input-group">
+          <input type="tel" id="modalPhone" placeholder="050-1234567" dir="ltr">
+        </div>
+        <button class="btn btn-primary" onclick="activateSms()">הפעל SMS</button>
+      </div>
+      
+      <div id="modalBuySection" style="display: none; margin-top: 15px;">
+        <button class="btn btn-primary" onclick="window.open('https://links.payboxapp.com/IdiXnIQ13Zb', '_blank')">
+          💳 רכישה - 29₪
+        </button>
+        <p style="font-size: 10px; color: #666; margin-top: 10px;">
+          לאחר הרכישה תקבל מפתח באימייל
+        </p>
+      </div>
+      
+      <br>
+      <button class="btn btn-secondary" onclick="closeModal('addSms')">ביטול</button>
+    </div>
+  </div>
+  
+  <!-- Cancel SMS Modal -->
+  <div class="modal" id="cancelSmsModal">
+    <button class="modal-close" onclick="closeModal('cancelSms')">✕</button>
+    <div class="modal-content">
+      <div class="step-icon">😢</div>
+      <h2>ביטול SMS</h2>
+      <p style="color: #aaa; font-size: 12px; margin: 15px 0;">
+        בטוח שאתה רוצה לבטל?<br>
+        תמשיך לקבל התראות באימייל בלבד.
+      </p>
+      <button class="btn btn-primary" onclick="confirmCancelSms()" style="background: #ff6b6b;">כן, בטל SMS</button>
+      <br>
+      <button class="btn btn-secondary" onclick="closeModal('cancelSms')" style="margin-top: 10px;">חזור</button>
+    </div>
+  </div>
+
+  <script>
+    // ========== STATE ==========
+    let state = {
+      currentStep: 1,
+      selectedPlan: 'email',
+      smsOption: null,
+      email: '',
+      phone: '',
+      licenseKey: '',
+      smsActive: false,
+      wizardComplete: false
+    };
+    
+    // Check if wizard was completed before
+    // (In real extension, this would use chrome.storage)
+    
+    // ========== WIZARD FUNCTIONS ==========
+    function updateProgress() {
+      document.querySelectorAll('.progress-step').forEach(step => {
+        const stepNum = parseFloat(step.dataset.step);
+        step.classList.remove('active', 'done');
+        
+        if (stepNum < state.currentStep) {
+          step.classList.add('done');
+          step.textContent = '✓';
+        } else if (stepNum === Math.floor(state.currentStep)) {
+          step.classList.add('active');
+        }
+      });
+      
+      document.querySelectorAll('.step').forEach(step => {
+        step.classList.remove('active');
+        if (parseFloat(step.dataset.step) === state.currentStep) {
+          step.classList.add('active');
+        }
+      });
+    }
+    
+    function nextStep() {
+      // Validation
+      if (state.currentStep === 2) {
+        state.email = document.getElementById('wizardEmail').value;
+        if (!state.email || !state.email.includes('@')) {
+          alert('נא להזין אימייל תקין');
+          return;
+        }
+      }
+      
+      if (state.currentStep === 3) {
+        if (state.selectedPlan === 'sms') {
+          state.currentStep = 3.5;
+          updateProgress();
+          return;
+        }
+      }
+      
+      if (state.currentStep === 3.5) {
+        if (state.smsOption === 'existing') {
+          state.licenseKey = document.getElementById('wizardLicenseKey').value;
+          state.phone = document.getElementById('wizardPhone').value;
+          if (!state.licenseKey || !state.phone) {
+            alert('נא למלא מפתח וטלפון');
+            return;
+          }
+          state.smsActive = true;
+        }
+      }
+      
+      state.currentStep = Math.floor(state.currentStep) + 1;
+      updateProgress();
+    }
+    
+    function selectPlan(plan) {
+      state.selectedPlan = plan;
+      document.getElementById('planEmail').classList.toggle('selected', plan === 'email');
+      document.getElementById('planSms').classList.toggle('selected', plan === 'sms');
+    }
+    
+    function selectSmsOption(option) {
+      state.smsOption = option;
+      document.getElementById('smsExisting').classList.toggle('selected', option === 'existing');
+      document.getElementById('smsBuy').classList.toggle('selected', option === 'buy');
+      
+      document.getElementById('existingKeySection').style.display = option === 'existing' ? 'block' : 'none';
+      document.getElementById('buySection').style.display = option === 'buy' ? 'block' : 'none';
+      document.getElementById('smsNextBtn').style.display = option === 'existing' ? 'inline-block' : 'none';
+    }
+    
+    function skipSms() {
+      state.selectedPlan = 'email';
+      state.smsActive = false;
+      state.currentStep = 4;
+      updateProgress();
+    }
+    
+    function finishWizard() {
+      state.wizardComplete = true;
+      document.getElementById('wizard').style.display = 'none';
+      document.getElementById('mainScreen').classList.add('active');
+      
+      // Update main screen with data
+      document.getElementById('mainEmailValue').textContent = state.email || 'לא הוגדר';
+      updateSmsDisplay();
+    }
+    
+    // ========== MAIN SCREEN FUNCTIONS ==========
+    function updateSmsDisplay() {
+      const valueEl = document.getElementById('mainSmsValue');
+      const btnEl = document.getElementById('smsActionBtn');
+      
+      if (state.smsActive) {
+        valueEl.textContent = state.phone || 'פעיל';
+        valueEl.className = 'setting-value active';
+        btnEl.textContent = 'בטל';
+        btnEl.className = 'setting-action cancel';
+        btnEl.onclick = () => openModal('cancelSms');
+      } else {
+        valueEl.textContent = 'לא פעיל';
+        valueEl.className = 'setting-value inactive';
+        btnEl.textContent = 'הוסף SMS';
+        btnEl.className = 'setting-action upgrade';
+        btnEl.onclick = () => openModal('addSms');
+      }
+    }
+    
+    function checkNow() {
+      alert('בודק כרטיסים...\n\n(בדמו בלבד - בגרסה האמיתית יבדוק באתר)');
+      document.getElementById('lastCheckTime').textContent = 'עכשיו';
+    }
+    
+    function testAlert() {
+      alert('📧 נשלחה התראת בדיקה ל:\n' + state.email);
+    }
+    
+    // ========== MODAL FUNCTIONS ==========
+    function openModal(type) {
+      document.getElementById(type + 'Modal').classList.add('active');
+    }
+    
+    function closeModal(type) {
+      document.getElementById(type + 'Modal').classList.remove('active');
+    }
+    
+    function saveEmail() {
+      const newEmail = document.getElementById('newEmail').value;
+      if (newEmail && newEmail.includes('@')) {
+        state.email = newEmail;
+        document.getElementById('mainEmailValue').textContent = newEmail;
+        closeModal('editEmail');
+        alert('✅ האימייל עודכן!');
+      } else {
+        alert('נא להזין אימייל תקין');
+      }
+    }
+    
+    function selectModalSmsOption(option) {
+      document.getElementById('modalSmsExisting').classList.toggle('selected', option === 'existing');
+      document.getElementById('modalSmsBuy').classList.toggle('selected', option === 'buy');
+      document.getElementById('modalExistingSection').style.display = option === 'existing' ? 'block' : 'none';
+      document.getElementById('modalBuySection').style.display = option === 'buy' ? 'block' : 'none';
+    }
+    
+    function activateSms() {
+      state.licenseKey = document.getElementById('modalLicenseKey').value;
+      state.phone = document.getElementById('modalPhone').value;
+      
+      if (!state.licenseKey || !state.phone) {
+        alert('נא למלא מפתח וטלפון');
+        return;
+      }
+      
+      state.smsActive = true;
+      updateSmsDisplay();
+      closeModal('addSms');
+      alert('✅ SMS הופעל בהצלחה!');
+    }
+    
+    function confirmCancelSms() {
+      state.smsActive = false;
+      state.phone = '';
+      state.licenseKey = '';
+      updateSmsDisplay();
+      closeModal('cancelSms');
+      alert('SMS בוטל. תמשיך לקבל התראות באימייל.');
+    }
+    
+    // ========== DEMO CONTROLS ==========
+    // For demo: add a button to reset wizard
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'r' && e.ctrlKey) {
+        state.currentStep = 1;
+        state.wizardComplete = false;
+        document.getElementById('wizard').style.display = 'block';
+        document.getElementById('mainScreen').classList.remove('active');
+        updateProgress();
+      }
+    });
+  </script>
+</body>
+</html>

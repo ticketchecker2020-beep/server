@@ -1,0 +1,44 @@
+{
+  "manifest_version": 3,
+  "name": "Beitar Ticket Monitor",
+  "version": "1.0.0",
+  "description": "מעקב אחר כרטיסים למשחקי בית״ר ירושלים - קבל התראות כשכרטיסים זמינים",
+  "default_locale": "he",
+  "permissions": [
+    "storage",
+    "alarms",
+    "notifications"
+  ],
+  "host_permissions": [
+    "https://www.beitarfc.co.il/*",
+    "https://www.leaan.co.il/*",
+    "https://server-tickets-l0rq.onrender.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.beitarfc.co.il/*"
+      ],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "מעקב כרטיסים בית״ר",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

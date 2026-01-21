@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ברוכים הבאים! - מעקב כרטיסים בית״ר</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+    
+    .container {
+      background: rgba(30, 30, 50, 0.95);
+      border-radius: 20px;
+      padding: 40px;
+      max-width: 600px;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+      border: 1px solid rgba(255, 215, 0, 0.2);
+    }
+    
+    .logo {
+      width: 100px;
+      height: 100px;
+      margin-bottom: 20px;
+    }
+    
+    h1 {
+      color: #ffd700;
+      font-size: 28px;
+      margin-bottom: 10px;
+    }
+    
+    .subtitle {
+      color: #aaa;
+      font-size: 16px;
+      margin-bottom: 30px;
+    }
+    
+    .success-badge {
+      background: rgba(76, 175, 80, 0.2);
+      border: 1px solid #4CAF50;
+      color: #4CAF50;
+      padding: 12px 24px;
+      border-radius: 30px;
+      font-size: 16px;
+      display: inline-block;
+      margin-bottom: 30px;
+    }
+    
+    .steps-title {
+      color: #fff;
+      font-size: 20px;
+      margin-bottom: 20px;
+    }
+    
+    .steps {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+      margin-bottom: 30px;
+    }
+    
+    .step {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      padding: 20px;
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      text-align: right;
+      transition: all 0.3s ease;
+    }
+    
+    .step:hover {
+      background: rgba(255, 215, 0, 0.1);
+      border-color: rgba(255, 215, 0, 0.3);
+    }
+    
+    .step-number {
+      background: linear-gradient(135deg, #ffd700, #ffcc00);
+      color: #000;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+    
+    .step-content {
+      flex: 1;
+    }
+    
+    .step-title {
+      color: #fff;
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    
+    .step-desc {
+      color: #888;
+      font-size: 13px;
+    }
+    
+    .step-icon {
+      font-size: 30px;
+      flex-shrink: 0;
+    }
+    
+    .gif-container {
+      background: rgba(0,0,0,0.3);
+      border-radius: 12px;
+      padding: 15px;
+      margin: 20px 0;
+    }
+    
+    .gif-container img {
+      max-width: 100%;
+      border-radius: 8px;
+      border: 1px solid #444;
+    }
+    
+    .arrow-hint {
+      color: #ffd700;
+      font-size: 40px;
+      animation: bounce 1s infinite;
+      margin: 20px 0;
+    }
+    
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-10px); }
+    }
+    
+    .btn {
+      background: linear-gradient(135deg, #ffd700, #ffcc00);
+      color: #000;
+      border: none;
+      padding: 15px 40px;
+      font-size: 18px;
+      font-weight: bold;
+      border-radius: 30px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      display: inline-block;
+      text-decoration: none;
+    }
+    
+    .btn:hover {
+      transform: scale(1.05);
+      box-shadow: 0 5px 20px rgba(255, 215, 0, 0.4);
+    }
+    
+    .footer-text {
+      color: #666;
+      font-size: 12px;
+      margin-top: 20px;
+    }
+    
+    .highlight {
+      background: rgba(255, 215, 0, 0.2);
+      padding: 2px 8px;
+      border-radius: 4px;
+      color: #ffd700;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <img src="icons/icon128.png" alt="בית״ר" class="logo">
+    
+    <h1>🎉 התוסף הותקן בהצלחה!</h1>
+    <p class="subtitle">מעקב כרטיסים בית״ר ירושלים 🖤💛</p>
+    
+    <div class="success-badge">✅ ההתקנה הושלמה</div>
+    
+    <h2 class="steps-title">📌 רק עוד צעד אחד קטן:</h2>
+    
+    <div class="steps">
+      <div class="step">
+        <div class="step-number">1</div>
+        <div class="step-content">
+          <div class="step-title">לחץ על אייקון התוספים</div>
+          <div class="step-desc">בפינה הימנית העליונה של Chrome</div>
+        </div>
+        <div class="step-icon">🧩</div>
+      </div>
+      
+      <div class="step">
+        <div class="step-number">2</div>
+        <div class="step-content">
+          <div class="step-title">מצא את <span class="highlight">Beitar Tickets</span></div>
+          <div class="step-desc">ברשימת התוספים שיופיע</div>
+        </div>
+        <div class="step-icon">🔍</div>
+      </div>
+      
+      <div class="step">
+        <div class="step-number">3</div>
+        <div class="step-content">
+          <div class="step-title">לחץ על הסיכה להצמדה</div>
+          <div class="step-desc">כדי שהתוסף יופיע תמיד בסרגל הכלים</div>
+        </div>
+        <div class="step-icon">📌</div>
+      </div>
+    </div>
+    
+    <div class="gif-container">
+      <img src="images/pin-extension.gif" alt="איך להצמיד את התוסף" id="pinGif">
+    </div>
+    
+    <script>
+      // Force GIF to loop by reloading it
+      const gif = document.getElementById('pinGif');
+      const gifSrc = gif.src;
+      
+      // Reload GIF every 9 seconds (adjust based on your GIF length)
+      setInterval(() => {
+        gif.src = '';
+        gif.src = gifSrc + '?t=' + Date.now();
+      }, 9000);
+    </script>
+    
+    <div class="arrow-hint">⬆️</div>
+    
+    <p class="steps-title">אחרי שהצמדת, לחץ על האייקון כדי להתחיל!</p>
+    
+    <a href="#" class="btn" onclick="window.close()">הבנתי! ✓</a>
+    
+    <p class="footer-text">לא תפספס יותר אף משחק של בית״ר! ⚽</p>
+  </div>
+</body>
+</html>

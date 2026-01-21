@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>מעקב כרטיסים בית״ר</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+
+  <!-- ========== WIZARD (First Time Setup) ========== -->
+  <div class="wizard-container" id="wizard">
+    <div class="wizard-header">
+      <img src="icons/icon128.png" alt="בית״ר">
+      <h1>מעקב כרטיסים</h1>
+      <p>בית״ר ירושלים 🖤💛</p>
+    </div>
+    
+    <div class="progress-bar" id="progressBar">
+      <div class="progress-step active" data-step="1">1</div>
+      <div class="progress-step" data-step="2">2</div>
+      <div class="progress-step" data-step="3">3</div>
+      <div class="progress-step" data-step="4">4</div>
+    </div>
+    
+    <!-- Step 1: Welcome -->
+    <div class="step active" data-step="1">
+      <div class="step-icon">👋</div>
+      <h2>ברוכים הבאים!</h2>
+      <p>
+        קבל התראה מיידית ברגע שכרטיסים למשחקי בית״ר יהיו זמינים.
+        <br>לעולם לא תפספס עוד משחק! ⚽
+      </p>
+      
+      <div class="terms-checkbox">
+        <label>
+          <input type="checkbox" id="acceptTerms">
+          <span>קראתי ומסכים ל<a href="#" id="showTermsLink">תנאי השימוש</a></span>
+        </label>
+      </div>
+      
+      <button class="btn btn-primary" id="startWizardBtn" disabled>בואו נתחיל! 🚀</button>
+    </div>
+    
+    <!-- Step 2: Email -->
+    <div class="step" data-step="2">
+      <div class="step-icon">📧</div>
+      <h2>לאן לשלוח התראות?</h2>
+      <p>הזן כתובות אימייל (ניתן להוסיף כמה שתרצה)</p>
+      
+      <div class="emails-container" id="wizardEmailsContainer">
+        <div class="email-input-row">
+          <input type="email" class="wizard-email-input" placeholder="your@email.com" dir="ltr">
+          <button class="email-remove-btn hidden">✕</button>
+        </div>
+      </div>
+      <button class="add-email-btn" id="addWizardEmailBtn">+ הוסף אימייל נוסף</button>
+      <p class="input-hint">🔒 לא נעביר לאף גורם אחר</p>
+      
+      <button class="btn btn-primary" id="emailNextBtn">המשך ←</button>
+    </div>
+    
+    <!-- Step 3: SMS Choice -->
+    <div class="step" data-step="3">
+      <div class="step-icon">📱</div>
+      <h2>רוצה גם SMS?</h2>
+      <p>התראות SMS מגיעות מהר יותר ישירות לנייד</p>
+      
+      <div class="choice-buttons">
+        <div class="choice-btn selected" id="planEmail">
+          <div class="icon">📧</div>
+          <div class="title">רק אימייל</div>
+          <div class="subtitle free">✓ חינם לנצח!</div>
+        </div>
+        <div class="choice-btn" id="planSms">
+          <div class="icon">📱</div>
+          <div class="title">אימייל + SMS</div>
+          <div class="subtitle">29₪/חודש</div>
+        </div>
+      </div>
+      
+      <button class="btn btn-primary" id="planNextBtn">המשך ←</button>
+    </div>
+    
+    <!-- Step 3.5: SMS Setup (conditional) -->
+    <div class="step" data-step="3.5">
+      <div class="step-icon">🔑</div>
+      <h2>הגדרת SMS</h2>
+      
+      <div class="sms-options">
+        <div class="sms-option" id="smsExisting">
+          <div class="sms-option-title">📋 יש לי כבר מפתח</div>
+          <div class="sms-option-desc">רכשתי בעבר או קיבלתי קוד</div>
+        </div>
+        <div class="sms-option" id="smsBuy">
+          <div class="sms-option-title">💳 רכישה חדשה</div>
+          <div class="sms-option-desc">29₪ לחודש - התראות ללא הגבלה</div>
+        </div>
+      </div>
+      
+      <!-- Enter existing key -->
+      <div id="existingKeySection" class="hidden">
+        <div class="input-group">
+          <input type="text" id="wizardLicenseKey" placeholder="BEITAR-XXXX-XXXX-XXXX" dir="ltr">
+        </div>
+        <div class="input-group">
+          <input type="tel" id="wizardPhone" placeholder="050-1234567" dir="ltr">
+        </div>
+        <button class="btn btn-primary" id="smsNextBtn">המשך ←</button>
+      </div>
+      
+      <!-- Buy section -->
+      <div id="buySection" class="hidden">
+        <p class="buy-text">לחץ לרכישה מאובטחת ב-PayBox</p>
+        <button class="btn btn-primary" id="buyBtn">💳 רכישה - 29₪</button>
+        <p class="buy-hint">לאחר הרכישה תקבל מפתח באימייל.<br>יש לך כבר מפתח? לחץ למעלה.</p>
+      </div>
+      
+      <a href="#" class="skip-link" id="skipSmsBtn">אולי אחר כך →</a>
+    </div>
+    
+    <!-- Step 4: Done -->
+    <div class="step" data-step="4">
+      <div class="step-icon">🎉</div>
+      <h2>מעולה, סיימנו!</h2>
+      
+      <div class="success-box">
+        <p>✅ ההתראות הוגדרו בהצלחה!</p>
+      </div>
+      
+      <p class="final-info">
+        🔄 בדיקה אוטומטית כל 5 דקות<br>
+        📬 התראה מיידית כשיש כרטיסים<br>
+        🎟️ קישור ישיר לרכישה
+      </p>
+      
+      <button class="btn btn-primary" id="finishWizardBtn">למסך הראשי ✓</button>
+      
+      <div class="donation-section">
+        <p>נהנית מהשירות? אפשר לתמוך בפיתוח המערכת 💛</p>
+        <button class="btn btn-donate" id="donateBtn">☕ קנה לי קפה</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== MAIN SCREEN ========== -->
+  <div class="main-screen" id="mainScreen">
+    <div class="main-header">
+      <img src="icons/icon128.png" alt="בית״ר">
+      <div class="main-header-text">
+        <h1>מעקב כרטיסים</h1>
+        <p>בית״ר ירושלים</p>
+      </div>
+    </div>
+    
+    <div class="status-card">
+      <div class="status-dot"></div>
+      <span class="status-text">🟢 פעיל ומנטר</span>
+    </div>
+    
+    <!-- Quick Actions -->
+    <div class="quick-actions">
+      <button class="quick-btn" id="checkNowBtn">
+        <span class="icon">🔄</span>
+        בדוק עכשיו
+      </button>
+      <button class="quick-btn" id="testAlertBtn">
+        <span class="icon">🔔</span>
+        בדיקת התראה
+      </button>
+    </div>
+    
+    <!-- Test Status -->
+    <div id="testStatus" class="test-status hidden"></div>
+    
+    <!-- Settings -->
+    <div class="settings-section">
+      <h3>⚙️ הגדרות התראות</h3>
+      
+      <!-- Email Setting -->
+      <div class="setting-item">
+        <div class="setting-info">
+          <div class="setting-label">📧 אימייל</div>
+          <div class="setting-value active" id="mainEmailValue">לא הוגדר</div>
+        </div>
+        <button class="setting-action edit" id="editEmailBtn">שנה</button>
+      </div>
+      
+      <!-- SMS Setting -->
+      <div class="setting-item" id="smsSettingItem">
+        <div class="setting-info">
+          <div class="setting-label">📱 SMS</div>
+          <div class="setting-value inactive" id="mainSmsValue">לא פעיל</div>
+        </div>
+        <button class="setting-action upgrade" id="smsActionBtn">הוסף SMS</button>
+      </div>
+    </div>
+    
+    <!-- Check Info -->
+    <div class="check-info">
+      <span class="check-info-icon">🔄</span>
+      <span>השרת בודק אוטומטית כל 5 דקות</span>
+    </div>
+    
+    <!-- Donation -->
+    <div class="donation-box">
+      <span>💛 נהנים מהשירות?</span>
+      <button class="btn-donate-small" id="mainDonateBtn">☕ תרומה</button>
+    </div>
+    
+    <div class="main-footer">
+      בדיקה אחרונה: <span id="lastCheckTime">--</span>
+      <br>
+      <a href="mailto:ticketchecker2020@gmail.com" class="support-link">📧 תמיכה</a>
+      <span class="footer-sep">|</span>
+      <a href="#" class="terms-link" id="mainTermsLink">תנאי שימוש</a>
+    </div>
+  </div>
+
+  <!-- ========== MODALS ========== -->
+  
+  <!-- Edit Email Modal -->
+  <div class="modal" id="editEmailModal">
+    <button class="modal-close" id="closeEditEmailBtn">✕</button>
+    <div class="modal-content">
+      <div class="step-icon">📧</div>
+      <h2>ניהול אימיילים</h2>
+      <div class="emails-container" id="modalEmailsContainer">
+        <!-- Emails will be added here dynamically -->
+      </div>
+      <button class="add-email-btn" id="addModalEmailBtn">+ הוסף אימייל נוסף</button>
+      <button class="btn btn-primary" id="saveEmailBtn">💾 שמור</button>
+      <br>
+      <button class="btn btn-secondary" id="cancelEditEmailBtn">ביטול</button>
+    </div>
+  </div>
+  
+  <!-- Add SMS Modal -->
+  <div class="modal" id="addSmsModal">
+    <button class="modal-close" id="closeAddSmsBtn">✕</button>
+    <div class="modal-content">
+      <div class="step-icon">📱</div>
+      <h2>הוספת SMS</h2>
+      <p class="modal-subtitle">קבל התראות ישירות לנייד!<br>29₪ לחודש - ללא הגבלה</p>
+      
+      <div class="sms-options">
+        <div class="sms-option" id="modalSmsExisting">
+          <div class="sms-option-title">📋 יש לי מפתח</div>
+        </div>
+        <div class="sms-option" id="modalSmsBuy">
+          <div class="sms-option-title">💳 רכישה חדשה</div>
+        </div>
+      </div>
+      
+      <div id="modalExistingSection" class="hidden">
+        <div class="input-group">
+          <input type="text" id="modalLicenseKey" placeholder="BEITAR-XXXX-XXXX-XXXX" dir="ltr">
+        </div>
+        <div class="input-group">
+          <input type="tel" id="modalPhone" placeholder="050-1234567" dir="ltr">
+        </div>
+        <button class="btn btn-primary" id="activateSmsBtn">הפעל SMS</button>
+      </div>
+      
+      <div id="modalBuySection" class="hidden">
+        <button class="btn btn-primary" id="modalBuyBtn">💳 רכישה - 29₪</button>
+        <p class="buy-hint">לאחר הרכישה תקבל מפתח באימייל</p>
+      </div>
+      
+      <br>
+      <button class="btn btn-secondary" id="cancelAddSmsBtn">ביטול</button>
+    </div>
+  </div>
+  
+  <!-- Cancel SMS Modal -->
+  <div class="modal" id="cancelSmsModal">
+    <button class="modal-close" id="closeCancelSmsBtn">✕</button>
+    <div class="modal-content">
+      <div class="step-icon">😢</div>
+      <h2>ביטול SMS</h2>
+      <p class="modal-subtitle">בטוח שאתה רוצה לבטל?<br>תמשיך לקבל התראות באימייל בלבד.</p>
+      <button class="btn btn-danger" id="confirmCancelSmsBtn">כן, בטל SMS</button>
+      <br>
+      <button class="btn btn-secondary" id="cancelCancelSmsBtn">חזור</button>
+    </div>
+  </div>
+
+  <!-- Terms Modal -->
+  <div class="modal" id="termsModal">
+    <button class="modal-close" id="closeTermsBtn">✕</button>
+    <div class="modal-content terms-content">
+      <div class="step-icon">📜</div>
+      <h2>תנאי שימוש</h2>
+      <div class="terms-text">
+        <p><strong>עדכון אחרון:</strong> ינואר 2026</p>
+        
+        <h4>1. תיאור השירות</h4>
+        <p>השירות מספק התראות על זמינות כרטיסים למשחקי בית"ר ירושלים. השירות אינו קשור, מאושר או ממומן על ידי מועדון בית"ר ירושלים או כל גוף רשמי אחר.</p>
+        
+        <h4>2. הסכמה לקבלת הודעות</h4>
+        <p>בהרשמה לשירות, אני מאשר/ת קבלת:</p>
+        <ul>
+          <li>הודעות אימייל על זמינות כרטיסים</li>
+          <li>הודעות SMS (במידה ורכשתי מנוי SMS)</li>
+          <li>עדכונים חשובים על השירות</li>
+        </ul>
+        <p>ניתן לבטל את ההרשמה בכל עת דרך הממשק או באמצעות קישור בתחתית האימייל.</p>
+        
+        <h4>3. תנאי תשלום (SMS)</h4>
+        <ul>
+          <li>שירות האימייל הוא חינמי לחלוטין וללא הגבלה</li>
+          <li>שירות SMS הוא בתשלום חודשי/שנתי</li>
+          <li>המחירים עשויים להשתנות בהודעה מראש</li>
+          <li>אין החזרים על תקופות שנוצלו</li>
+          <li>התשלום מתבצע דרך ספק תשלומים מאובטח</li>
+        </ul>
+        
+        <h4>4. אחריות מוגבלת</h4>
+        <ul>
+          <li>השירות ניתן "כמות שהוא" (AS IS) ללא אחריות לזמינות רציפה</li>
+          <li>אין אחריות על איחור או אי-קבלת התראות</li>
+          <li>אין אחריות על זמינות כרטיסים בפועל</li>
+          <li>המשתמש אחראי על פרטי הקשר שהזין</li>
+        </ul>
+        
+        <h4>5. פרטיות</h4>
+        <ul>
+          <li>פרטי הקשר נשמרים לצורך מתן השירות בלבד</li>
+          <li>לא נעביר את פרטיך לצד שלישי</li>
+          <li>המידע נשמר בשרתים מאובטחים</li>
+        </ul>
+        
+        <h4>6. שינויים בתנאים</h4>
+        <p>אנו שומרים את הזכות לעדכן תנאים אלו. שימוש מתמשך בשירות מהווה הסכמה לתנאים המעודכנים.</p>
+        
+        <h4>7. יצירת קשר</h4>
+        <p>לשאלות ובירורים ניתן לפנות באימייל: ticketchecker2020@gmail.com</p>
+      </div>
+      <button class="btn btn-primary" id="acceptTermsBtn">קראתי ומסכים/ה</button>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
