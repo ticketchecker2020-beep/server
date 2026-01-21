@@ -1136,6 +1136,55 @@ app.post('/api/admin/reset-stats', (req, res) => {
   res.json({ success: true, message: 'Stats reset' });
 });
 
+// Admin: Enable SMS/VIP for subscriber
+app.post('/api/admin/enable-sms', async (req, res) => {
+  const adminPass = req.headers['x-admin-password'] || req.body.adminPassword;
+  if (adminPass !== (process.env.ADMIN_PASSWORD || 'BeitarAdmin123!')) {
+    return res.status(401).json({ error: 'Invalid admin password' });
+  }
+  
+  const { subscriberId } = req.body;
+  
+  if (!subscriberId) {
+    return res.status(400).json({ error: 'subscriberId required' });
+  }
+  
+  const subscriber = data.subscribers[subscriberId];
+  if (!subscriber) {
+    return res.status(404).json({ error: 'Subscriber not found' });
+  }
+  
+  subscriber.smsEnabled = true;
+  subscriber.vip = true;
+  await saveData();
+  
+  console.log(`✨ VIP enabled for ${subscriberId}`);
+  res.json({ success: true, message: `SMS/VIP enabled for ${subscriberId}` });
+});
+
+// Admin: Delete subscriber
+app.post('/api/admin/delete-subscriber', async (req, res) => {
+  const adminPass = req.headers['x-admin-password'] || req.body.adminPassword;
+  if (adminPass !== (process.env.ADMIN_PASSWORD || 'BeitarAdmin123!')) {
+    return res.status(401).json({ error: 'Invalid admin password' });
+  }
+  
+  const { subscriberId } = req.body;
+  
+  if (!subscriberId) {
+    return res.status(400).json({ error: 'subscriberId required' });
+  }
+  
+  if (data.subscribers[subscriberId]) {
+    delete data.subscribers[subscriberId];
+    await saveData();
+    console.log(`🗑️ Subscriber deleted: ${subscriberId}`);
+    res.json({ success: true, message: `Subscriber ${subscriberId} deleted` });
+  } else {
+    res.status(404).json({ error: 'Subscriber not found' });
+  }
+});
+
 // ============ LICENSE MANAGEMENT ============
 
 // Self-registration for FREE TRIAL (public endpoint)
@@ -1703,15 +1752,19 @@ app.get('/admin', async (req, res) => {
     const emailCount = (sub.emails || []).length;
     const primaryEmail = sub.emails?.[0] || key;
     const escapedKey = key.replace(/'/g, "\\'");
+    const gamesCount = (sub.monitoredGames || []).length;
     return `
       <tr class="${sub.active ? 'active' : 'inactive'}">
         <td>${primaryEmail}</td>
         <td>${emailCount}</td>
         <td>${sub.phone || '-'}</td>
-        <td>${sub.smsEnabled ? '✅ כן' : '❌ לא'}</td>
+        <td>${sub.smsEnabled ? '✅ VIP' : '❌ לא'}</td>
+        <td>${gamesCount} משחקים</td>
         <td>${sub.active ? '✅ פעיל' : '❌ לא פעיל'}</td>
         <td>${new Date(sub.registeredAt).toLocaleDateString('he-IL')}</td>
         <td>
+          ${!sub.smsEnabled ? `<button class="btn btn-success" style="padding: 5px 10px; font-size: 0.8em; margin-left: 5px;" 
+                  onclick="enableVip('${escapedKey}')">👑 VIP</button>` : ''}
           <button class="btn btn-danger" style="padding: 5px 10px; font-size: 0.8em;" 
                   onclick="deleteSubscriber('${escapedKey}')">🗑️ מחק</button>
         </td>
@@ -1917,9 +1970,10 @@ app.get('/admin', async (req, res) => {
         <thead>
           <tr>
             <th>אימייל ראשי</th>
-            <th>כמות אימיילים</th>
+            <th>אימיילים</th>
             <th>טלפון</th>
-            <th>SMS</th>
+            <th>VIP</th>
+            <th>משחקים</th>
             <th>סטטוס</th>
             <th>הרשמה</th>
             <th>פעולה</th>
@@ -2074,10 +2128,13 @@ app.get('/admin', async (req, res) => {
     async function deleteSubscriber(email) {
       if (!confirm('למחוק את המנוי ' + email + '?')) return;
       try {
-        const res = await fetch('/api/admin/subscriber/delete?p=${adminPassword}', {
+        const res = await fetch('/api/admin/delete-subscriber', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email })
+          headers: { 
+            'Content-Type': 'application/json',
+            'x-admin-password': '${adminPassword}'
+          },
+          body: JSON.stringify({ subscriberId: email })
         });
         const data = await res.json();
         if (data.success) {
@@ -2087,6 +2144,29 @@ app.get('/admin', async (req, res) => {
         }
       } catch (e) {
         alert('שגיאה במחיקת מנוי');
+      }
+    }
+    
+    async function enableVip(email) {
+      if (!confirm('להפעיל VIP/SMS למנוי ' + email + '?')) return;
+      try {
+        const res = await fetch('/api/admin/enable-sms', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'x-admin-password': '${adminPassword}'
+          },
+          body: JSON.stringify({ subscriberId: email })
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert('✅ VIP הופעל בהצלחה!');
+          location.reload();
+        } else {
+          alert('שגיאה: ' + data.error);
+        }
+      } catch (e) {
+        alert('שגיאה בהפעלת VIP');
       }
     }
   </script>
