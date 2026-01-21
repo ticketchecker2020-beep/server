@@ -10,7 +10,20 @@ body {
   min-height: 480px;
   background: #000;
   color: #fff;
-  padding: 16px;
+  padding: 0;
+}
+
+/* Scarf Banner */
+.scarf-banner {
+  width: 100%;
+  overflow: hidden;
+  line-height: 0;
+}
+
+.scarf-banner img {
+  width: 100%;
+  height: auto;
+  display: block;
 }
 
 .hidden { display: none !important; }
@@ -18,6 +31,7 @@ body {
 /* ========== WIZARD STYLES ========== */
 .wizard-container {
   text-align: center;
+  padding: 16px;
 }
 
 .wizard-container.hidden { display: none; }
@@ -45,6 +59,14 @@ body {
 .wizard-header p {
   color: #333;
   font-size: 12px;
+}
+
+.fan-chant {
+  font-size: 11px;
+  font-style: italic;
+  color: #000;
+  margin-top: 4px;
+  opacity: 0.8;
 }
 
 /* Progress Bar */
@@ -548,6 +570,7 @@ body {
 /* ========== MAIN SCREEN STYLES ========== */
 .main-screen {
   display: none;
+  padding: 16px;
 }
 
 .main-screen.active { display: block; }

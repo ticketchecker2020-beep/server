@@ -4,6 +4,22 @@ const SERVER_URL = 'https://server-tickets-l0rq.onrender.com';
 // Check if running as Chrome extension or standalone
 const isExtension = typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local;
 
+// Fan chants - random slogans for UI 🎵
+const FAN_CHANTS = [
+  'שבחי ירושלים הלב שלי צועק צהוב שחור',
+  'אוהב מכל הלב אוהב אותך כל כך שזה כואב',
+  'ללב נכנסת התאהבתי בך',
+  'עכשיו עומד כאן מאוהב אריה שואג על החולצה מניף את הצעיף',
+  'לא תצעדי לבד אף פעם רק אותך אני אוהב',
+  'אומרים לי שאני קצת משוגע ככה זה באהבה כשאת בתוך הנשמה',
+  'איתך מהיציע ועד הנצח'
+];
+
+// Get random fan chant
+function getRandomChant() {
+  return FAN_CHANTS[Math.floor(Math.random() * FAN_CHANTS.length)];
+}
+
 class BeitarPopup {
   constructor() {
     this.state = {
@@ -25,6 +41,9 @@ class BeitarPopup {
     // Load saved state from storage
     await this.loadState();
     
+    // Set random fan chants
+    this.updateChants();
+    
     // Decide whether to show wizard or main screen
     if (this.state.wizardComplete) {
       this.showMainScreen();
@@ -39,6 +58,20 @@ class BeitarPopup {
     
     // Update last check time
     this.updateLastCheckTime();
+  }
+  
+  updateChants() {
+    // Update wizard header chant
+    const wizardChant = document.getElementById('wizardChant');
+    if (wizardChant) {
+      wizardChant.textContent = '🎵 ' + getRandomChant();
+    }
+    
+    // Update main screen chant
+    const mainChant = document.getElementById('mainChant');
+    if (mainChant) {
+      mainChant.textContent = '💛🖤 ' + getRandomChant();
+    }
   }
 
   async loadState() {
