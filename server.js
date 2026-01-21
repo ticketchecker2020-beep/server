@@ -1827,9 +1827,27 @@ app.get('/pricing', (req, res) => {
     </div>
     
     <div class="footer">
-      <p>💛🖤 בית"ר ירושלים - הקבוצה הכי גדולה בישראל!</p>
+      <p id="randomPhrase">💛🖤</p>
     </div>
   </div>
+  
+  <script>
+    const phrases = [
+      "💛🖤 צהוב זה הצבע!",
+      "💛🖤 בית\"ר ירושלים - הקבוצה הכי גדולה בישראל!",
+      "💛🖤 רק בית\"ר בלב!",
+      "💛🖤 עד הנצחון!",
+      "💛🖤 אחים לנצח!",
+      "💛🖤 הכוח הצהוב!",
+      "💛🖤 ירושלים שלנו!",
+      "💛🖤 בית\"ר עד הסוף!",
+      "💛🖤 לא עוצרים עד הבית!",
+      "💛🖤 המלך של ירושלים!",
+      "💛🖤 צהוב-שחור זה אהבה!",
+      "💛🖤 Forever Beitar!"
+    ];
+    document.getElementById('randomPhrase').textContent = phrases[Math.floor(Math.random() * phrases.length)];
+  </script>
 </body>
 </html>
   `);
