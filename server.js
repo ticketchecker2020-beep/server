@@ -399,23 +399,14 @@ function setupEmailTransporter() {
   }
 }
 
-// Twilio SMS setup
-let twilioClient = null;
-
-function setupTwilio() {
-  if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
-    try {
-      const twilio = require('twilio');
-      twilioClient = twilio(
-        process.env.TWILIO_ACCOUNT_SID,
-        process.env.TWILIO_AUTH_TOKEN
-      );
-      console.log('📱 Twilio SMS configured');
-    } catch (error) {
-      console.log('⚠️ Twilio setup failed:', error.message);
-    }
+// 019SMS setup check
+function setup019SMS() {
+  if (process.env.SMS019_TOKEN && process.env.SMS019_USERNAME) {
+    console.log('📱 019SMS configured (sender: ' + (process.env.SMS019_SENDER || 'TicketAlert') + ')');
+    return true;
   } else {
-    console.log('⚠️ Twilio not configured - check .env file');
+    console.log('⚠️ 019SMS not configured - add SMS019_USERNAME and SMS019_TOKEN to environment');
+    return false;
   }
 }
 
@@ -453,164 +444,71 @@ async function sendSMS(to, message) {
     phone = phone.substring(1); // Remove leading 0
   }
   
-  // OPTION 1: 019SMS (Cheapest Israeli provider!)
-  if (process.env.SMS019_TOKEN && process.env.SMS019_USERNAME) {
-    try {
-      const xmlData = `<?xml version="1.0" encoding="UTF-8"?>
+  // 019SMS - Israeli SMS provider
+  if (!process.env.SMS019_TOKEN || !process.env.SMS019_USERNAME) {
+    console.log('⚠️ 019SMS not configured - missing SMS019_TOKEN or SMS019_USERNAME');
+    return false;
+  }
+  
+  try {
+    const xmlData = `<?xml version="1.0" encoding="UTF-8"?>
 <sms>
   <user>
     <username>${process.env.SMS019_USERNAME}</username>
   </user>
-  <source>${process.env.SMS019_SENDER || 'Beitar'}</source>
+  <source>${process.env.SMS019_SENDER || 'TicketAlert'}</source>
   <destinations>
     <phone>${phone}</phone>
   </destinations>
   <message>${message}</message>
 </sms>`;
-      
-      const response = await fetch('https://019sms.co.il/api', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/xml',
-          'Authorization': `Bearer ${process.env.SMS019_TOKEN}`
-        },
-        body: xmlData
-      });
-      
-      const result = await response.text();
-      
-      // Status 0 = success in 019SMS
-      if (result.includes('<status>0</status>')) {
-        console.log(`✅ SMS sent via 019SMS to 0${phone}`);
-        trackUsage('sms', true, { provider: '019sms', to: phone.substring(0, 2) + '***' });
-        return true;
-      } else {
-        console.error(`❌ 019SMS failed:`, result);
-      }
-    } catch (error) {
-      console.error(`❌ 019SMS error:`, error.message);
-    }
-  }
-  
-  // OPTION 2: Inforu (also cheap)
-  if (process.env.INFORU_USER && process.env.INFORU_PASSWORD) {
-    try {
-      const inforuPhone = '0' + phone; // Inforu needs leading 0
-      const inforuUrl = 'https://api.inforu.co.il/SendMessageXml.ashx';
-      const xmlData = `
-        <Inforu>
-          <User>
-            <Username>${process.env.INFORU_USER}</Username>
-            <Password>${process.env.INFORU_PASSWORD}</Password>
-          </User>
-          <Content Type="sms">
-            <Message>${message}</Message>
-          </Content>
-          <Recipients>
-            <PhoneNumber>${inforuPhone}</PhoneNumber>
-          </Recipients>
-          <Settings>
-            <Sender>${process.env.INFORU_SENDER || 'Beitar'}</Sender>
-          </Settings>
-        </Inforu>
-      `;
-      
-      const response = await fetch(inforuUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/xml' },
-        body: xmlData
-      });
-      
-      const result = await response.text();
-      
-      if (result.includes('Status>1<') || result.includes('OK')) {
-        console.log(`✅ SMS sent via Inforu to ${inforuPhone}`);
-        trackUsage('sms', true, { provider: 'inforu', to: phone.substring(0, 2) + '***' });
-        return true;
-      } else {
-        console.error(`❌ Inforu SMS failed:`, result);
-      }
-    } catch (error) {
-      console.error(`❌ Inforu error:`, error.message);
-    }
-  }
-  
-  // OPTION 3: Twilio (expensive fallback)
-  if (twilioClient) {
-    try {
-      const twilioPhone = '+972' + phone;
-      
-      await twilioClient.messages.create({
-        body: message,
-        from: process.env.TWILIO_PHONE_NUMBER,
-        to: twilioPhone
-      });
-      console.log(`✅ SMS sent via Twilio to ${twilioPhone}`);
-      trackUsage('sms', true, { provider: 'twilio', to: twilioPhone.substring(0, 6) + '***' });
+    
+    const response = await fetch('https://019sms.co.il/api', {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/xml',
+        'Authorization': `Bearer ${process.env.SMS019_TOKEN}`
+      },
+      body: xmlData
+    });
+    
+    const result = await response.text();
+    
+    // Status 0 = success in 019SMS
+    if (result.includes('<status>0</status>')) {
+      console.log(`✅ SMS sent via 019SMS to 0${phone}`);
+      trackUsage('sms', true, { provider: '019sms', to: phone.substring(0, 2) + '***' });
       return true;
-    } catch (error) {
-      console.error(`❌ Twilio SMS failed:`, error.message);
-      trackUsage('sms', false, { error: error.message });
+    } else {
+      console.error(`❌ 019SMS failed:`, result);
+      trackUsage('sms', false, { error: result });
       return false;
     }
-  }
-  
-  console.log('⚠️ No SMS provider configured');
-  return false;
-}
-
-// Check Twilio Balance
-async function getTwilioBalance() {
-  if (!twilioClient) {
-    return { error: 'Twilio not configured' };
-  }
-  
-  try {
-    const accountSid = process.env.TWILIO_ACCOUNT_SID;
-    const balance = await twilioClient.balance.fetch();
-    
-    const SMS_COST = 0.75; // ~$0.75 per SMS to Israel (based on actual usage)
-    
-    return {
-      balance: parseFloat(balance.balance),
-      currency: balance.currency,
-      accountSid: accountSid.substring(0, 8) + '...',
-      smsCost: SMS_COST,
-      estimatedSmsRemaining: Math.floor(parseFloat(balance.balance) / SMS_COST),
-      lowBalance: parseFloat(balance.balance) < 5 // Alert if less than $5
-    };
   } catch (error) {
-    console.error('❌ Failed to get Twilio balance:', error.message);
-    return { error: error.message };
+    console.error(`❌ 019SMS error:`, error.message);
+    trackUsage('sms', false, { error: error.message });
+    return false;
   }
 }
 
-// Check balance and alert if low (runs with monitoring)
-async function checkTwilioBalanceAlert() {
-  const balanceInfo = await getTwilioBalance();
+// Check 019SMS Status
+function get019SMSStatus() {
+  const configured = !!(process.env.SMS019_TOKEN && process.env.SMS019_USERNAME);
   
-  if (balanceInfo.lowBalance) {
-    console.log('⚠️ LOW TWILIO BALANCE:', balanceInfo.balance, balanceInfo.currency);
-    
-    // Send alert email to admin
-    const adminEmail = process.env.ADMIN_EMAIL || process.env.EMAIL_USER;
-    if (adminEmail) {
-      await sendEmail(adminEmail, '⚠️ התראה: יתרת SMS נמוכה!', `
-        <div style="font-family: Arial; direction: rtl; padding: 20px;">
-          <h2 style="color: #ff6b6b;">⚠️ יתרת Twilio נמוכה!</h2>
-          <p>היתרה הנוכחית: <strong>$${balanceInfo.balance}</strong></p>
-          <p>נותרו כ-<strong>${balanceInfo.estimatedSmsRemaining}</strong> הודעות SMS</p>
-          <p style="margin-top: 20px;">
-            <a href="https://console.twilio.com/us1/billing" style="background: #ffd700; color: #000; padding: 10px 20px; border-radius: 5px; text-decoration: none;">
-              טען יתרה ב-Twilio
-            </a>
-          </p>
-        </div>
-      `);
-    }
-  }
-  
-  return balanceInfo;
+  return {
+    provider: '019SMS',
+    configured: configured,
+    username: configured ? process.env.SMS019_USERNAME : null,
+    sender: process.env.SMS019_SENDER || 'TicketAlert',
+    smsCost: 0.04, // ~0.04₪ per SMS
+    currency: 'ILS',
+    note: configured ? 'לבדיקת יתרה - היכנס לדשבורד של 019SMS' : 'SMS לא מוגדר'
+  };
+}
+
+// Check SMS status (for monitoring)
+function checkSMSStatus() {
+  return get019SMSStatus();
 }
 
 // API Routes
@@ -620,21 +518,30 @@ app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
     email: !!emailTransporter,
-    sms: !!twilioClient,
+    sms: !!(process.env.SMS019_TOKEN && process.env.SMS019_USERNAME),
+    smsProvider: '019SMS',
     timestamp: new Date().toISOString()
   });
 });
 
-// Get Twilio Balance (admin only)
-app.get('/api/twilio/balance', async (req, res) => {
+// Get SMS Status (admin only)
+app.get('/api/sms/status', (req, res) => {
   const adminPassword = req.query.admin || req.headers['x-admin-password'];
   
   if (adminPassword !== process.env.ADMIN_PASSWORD && adminPassword !== 'BeitarAdmin123!') {
     return res.status(401).json({ error: 'Admin password required. Use ?admin=PASSWORD' });
   }
   
-  const balanceInfo = await getTwilioBalance();
-  res.json(balanceInfo);
+  const smsStatus = get019SMSStatus();
+  res.json(smsStatus);
+});
+
+// Keep old endpoint for backwards compatibility
+app.get('/api/twilio/balance', (req, res) => {
+  res.json({ 
+    note: 'Twilio removed. Using 019SMS now.',
+    ...get019SMSStatus()
+  });
 });
 
 // Get usage stats
@@ -892,7 +799,8 @@ app.get('/api/admin/stats', (req, res) => {
     usage: data.usage,
     config: {
       emailConfigured: !!emailTransporter,
-      smsConfigured: !!twilioClient
+      smsConfigured: !!(process.env.SMS019_TOKEN && process.env.SMS019_USERNAME),
+      smsProvider: '019SMS'
     }
   });
 });
@@ -984,13 +892,9 @@ app.post('/api/register', (req, res) => {
   saveData();
   
   // Send welcome SMS only for VIP (100% discount coupon) - don't waste money on free users
-  if (twilioClient && isVipCoupon) {
+  if (isVipCoupon && process.env.SMS019_TOKEN) {
     const welcomeMsg = `🎟️ VIP! מפתח: ${licenseKey}\n🖤💛 SMS ללא הגבלה!`;
-    twilioClient.messages.create({
-      body: welcomeMsg,
-      from: process.env.TWILIO_PHONE_NUMBER,
-      to: normalizedPhone
-    }).catch(err => console.log('Welcome SMS failed:', err.message));
+    sendSMS(normalizedPhone, welcomeMsg).catch(err => console.log('Welcome SMS failed:', err.message));
   }
   
   // Send welcome email if provided
@@ -2763,7 +2667,7 @@ setTimeout(checkLicenseExpiry, 5000);
 
 // Initialize services and start server
 setupEmailTransporter();
-setupTwilio();
+setup019SMS();
 
 // ============================================
 // 🔄 SERVER-SIDE TICKET MONITORING (24/7)
@@ -3039,19 +2943,17 @@ setInterval(checkTicketsAndNotify, CHECK_INTERVAL);
 // Run first check after 10 seconds (let server start first)
 setTimeout(checkTicketsAndNotify, 10000);
 
-// Check Twilio balance every 6 hours
-setInterval(checkTwilioBalanceAlert, 6 * 60 * 60 * 1000);
-
-// Check balance on startup (after 30 seconds)
-setTimeout(async () => {
-  const balance = await checkTwilioBalanceAlert();
-  if (balance.balance) {
-    console.log(`💰 Twilio Balance: $${balance.balance} (~${balance.estimatedSmsRemaining} SMS remaining)`);
+// Log SMS status on startup
+setTimeout(() => {
+  const smsStatus = checkSMSStatus();
+  if (smsStatus.configured) {
+    console.log(`📱 019SMS ready (sender: ${smsStatus.sender})`);
+  } else {
+    console.log('⚠️ 019SMS not configured');
   }
-}, 30000);
+}, 5000);
 
 console.log('🔄 Server-side ticket monitoring enabled (every 5 minutes)');
-console.log('💰 Twilio balance check enabled (every 6 hours)');
 
 // ============================================
 
