@@ -28,9 +28,9 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Server version - UPDATE THIS ON EACH DEPLOY!
-const SERVER_VERSION = '2.2.3';
+const SERVER_VERSION = '2.3.0';
 const VERSION_DATE = '2026-01-22';
-const VERSION_NOTES = 'Highlighted fan chants in pricing footer';
+const VERSION_NOTES = 'Admin: manual license creation for failed payments';
 
 // Data file for fallback storage
 const DATA_FILE = path.join(__dirname, 'data.json');
@@ -1279,6 +1279,104 @@ app.post('/api/admin/reset-stats', (req, res) => {
   saveData();
   
   res.json({ success: true, message: 'Stats reset' });
+});
+
+// Admin: Create license manually (for when payment didn't trigger webhook)
+app.post('/api/admin/create-license', async (req, res) => {
+  const adminPass = req.headers['x-admin-password'] || req.body.adminPassword || req.query.p;
+  if (adminPass !== (process.env.ADMIN_PASSWORD || 'BeitarAdmin123!')) {
+    return res.status(401).json({ error: 'Invalid admin password' });
+  }
+  
+  const { email, phone, name, plan } = req.body;
+  
+  if (!email || !phone) {
+    return res.status(400).json({ error: 'email and phone required' });
+  }
+  
+  const selectedPlan = plan === 'yearly' ? 'yearly' : 'monthly';
+  const planConfig = PRICING[selectedPlan];
+  
+  const licenseKey = generateLicenseKey();
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + planConfig.days);
+  
+  // Format phone
+  let formattedPhone = phone.replace(/\D/g, '');
+  if (formattedPhone.startsWith('0')) {
+    formattedPhone = '+972' + formattedPhone.substring(1);
+  } else if (!formattedPhone.startsWith('+')) {
+    formattedPhone = '+972' + formattedPhone;
+  }
+  
+  data.licenses[licenseKey] = {
+    key: licenseKey,
+    userName: name || email.split('@')[0],
+    plan: selectedPlan,
+    userEmail: email,
+    userPhone: formattedPhone,
+    active: true,
+    createdAt: new Date().toISOString(),
+    expiresAt: expiresAt.toISOString(),
+    smsRemaining: planConfig.smsLimit,
+    smsLimit: planConfig.smsLimit,
+    usage: { emails: 0, sms: 0 },
+    createdBy: 'admin-manual'
+  };
+  
+  await saveData();
+  
+  // Send license by email
+  const emailHtml = `
+    <!DOCTYPE html>
+    <html dir="rtl" lang="he">
+    <head><meta charset="UTF-8"></head>
+    <body style="font-family: Arial; background: #111; color: #fff; padding: 20px;">
+      <div style="max-width: 500px; margin: 0 auto; background: #1a1a1a; border-radius: 15px; padding: 30px; border: 2px solid #ffd700;">
+        <h1 style="color: #ffd700; text-align: center;">🎟️ ברוך הבא!</h1>
+        <p style="text-align: center; color: #ccc;">תודה שנרשמת להתראות כרטיסים של בית"ר ירושלים!</p>
+        
+        <div style="background: #222; padding: 20px; border-radius: 10px; margin: 20px 0;">
+          <p style="margin: 0; color: #888;">מפתח הרשיון שלך:</p>
+          <p style="font-size: 1.5em; color: #ffd700; font-family: monospace; margin: 10px 0; word-break: break-all;">
+            ${licenseKey}
+          </p>
+        </div>
+        
+        <div style="background: #222; padding: 15px; border-radius: 10px; margin: 10px 0;">
+          <p style="margin: 5px 0;">📅 תוקף: עד ${expiresAt.toLocaleDateString('he-IL')}</p>
+          <p style="margin: 5px 0;">📱 SMS נותרו: ${planConfig.smsLimit}</p>
+          <p style="margin: 5px 0;">📧 אימייל: ללא הגבלה</p>
+        </div>
+        
+        <h3 style="color: #ffd700; margin-top: 30px;">איך להשתמש:</h3>
+        <ol style="color: #ccc; line-height: 2;">
+          <li>התקן את התוסף לכרום</li>
+          <li>פתח את התוסף ולחץ על "SMS בתשלום"</li>
+          <li>הכנס את מפתח הרשיון</li>
+          <li>זהו! תקבל SMS כשיש כרטיסים</li>
+        </ol>
+        
+        <p style="text-align: center; margin-top: 30px; color: #888;">
+          💛🖤 בהצלחה במשחקים!
+        </p>
+      </div>
+    </body>
+    </html>
+  `;
+  
+  await sendEmail(email, '🎟️ מפתח הרשיון שלך - בית"ר ירושלים', emailHtml);
+  
+  // Also send SMS
+  await sendSMS(formattedPhone, `בית"ר: מפתח הרשיון שלך: ${licenseKey}`);
+  
+  console.log(`✅ Admin created license ${licenseKey} for ${email}`);
+  
+  res.json({ 
+    success: true, 
+    licenseKey,
+    message: `License created and sent to ${email} and ${phone}` 
+  });
 });
 
 // Admin: Enable SMS/VIP for subscriber

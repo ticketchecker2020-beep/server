@@ -395,6 +395,34 @@
       </div>
       
       <div class="section">
+        <h2>🎫 יצירת רישיון ידנית</h2>
+        <p style="color: #888; margin-bottom: 15px;">לשימוש כאשר התשלום בוצע אבל ה-webhook לא עבד</p>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+          <div>
+            <label style="color: #888; font-size: 0.9em;">אימייל:</label>
+            <input type="email" id="licenseEmail" placeholder="user@example.com" style="width: 100%;">
+          </div>
+          <div>
+            <label style="color: #888; font-size: 0.9em;">טלפון:</label>
+            <input type="tel" id="licensePhone" placeholder="0501234567" style="width: 100%;">
+          </div>
+          <div>
+            <label style="color: #888; font-size: 0.9em;">שם (אופציונלי):</label>
+            <input type="text" id="licenseName" placeholder="שם" style="width: 100%;">
+          </div>
+          <div>
+            <label style="color: #888; font-size: 0.9em;">תוכנית:</label>
+            <select id="licensePlan" style="width: 100%; padding: 10px; border-radius: 8px; background: #222; color: #fff; border: 1px solid #444;">
+              <option value="monthly">חודשי (29₪)</option>
+              <option value="yearly">שנתי (199₪)</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn btn-gold" style="margin-top: 15px;" onclick="createLicense()">🎫 צור רישיון ושלח ללקוח</button>
+        <p id="licenseResult" style="margin-top: 10px; font-size: 0.9em;"></p>
+      </div>
+      
+      <div class="section">
         <h2>⚙️ פעולות מערכת</h2>
         <button class="btn btn-danger" onclick="resetStats()">🗑️ איפוס סטטיסטיקות</button>
         <button class="btn btn-success" style="margin-right: 10px;" onclick="refreshData()">🔄 רענן נתונים</button>
@@ -824,6 +852,44 @@
         }
       } catch (e) {
         alert('❌ שגיאה: ' + e.message);
+      }
+    }
+    
+    // Create license manually
+    async function createLicense() {
+      const email = document.getElementById('licenseEmail').value;
+      const phone = document.getElementById('licensePhone').value;
+      const name = document.getElementById('licenseName').value;
+      const plan = document.getElementById('licensePlan').value;
+      
+      if (!email || !phone) {
+        alert('נא להזין אימייל וטלפון');
+        return;
+      }
+      
+      if (!confirm(`ליצור רישיון ${plan === 'yearly' ? 'שנתי' : 'חודשי'} עבור ${email}?`)) return;
+      
+      document.getElementById('licenseResult').innerHTML = '⏳ יוצר רישיון...';
+      
+      try {
+        const res = await apiCall('/api/admin/create-license', 'POST', { email, phone, name, plan });
+        if (res.success) {
+          document.getElementById('licenseResult').innerHTML = `
+            <span style="color: #4ade80;">✅ רישיון נוצר בהצלחה!</span><br>
+            <span style="color: #ffd700; font-family: monospace; font-size: 1.1em;">${res.licenseKey}</span><br>
+            <span style="color: #888;">נשלח ל: ${email}</span>
+          `;
+          // Clear form
+          document.getElementById('licenseEmail').value = '';
+          document.getElementById('licensePhone').value = '';
+          document.getElementById('licenseName').value = '';
+          // Refresh data to show new license
+          loadData();
+        } else {
+          document.getElementById('licenseResult').innerHTML = '<span style="color: #ff6b6b;">❌ ' + escapeHtml(res.error || 'נכשל') + '</span>';
+        }
+      } catch (e) {
+        document.getElementById('licenseResult').innerHTML = '<span style="color: #ff6b6b;">❌ שגיאה: ' + escapeHtml(e.message) + '</span>';
       }
     }
     
