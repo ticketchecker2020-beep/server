@@ -28,9 +28,9 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Server version - UPDATE THIS ON EACH DEPLOY!
-const SERVER_VERSION = '2.1.2';
+const SERVER_VERSION = '2.2.0';
 const VERSION_DATE = '2026-01-22';
-const VERSION_NOTES = 'Changed background to black, removed status button';
+const VERSION_NOTES = 'Added admin failure notifications, updated pricing text';
 
 // Data file for fallback storage
 const DATA_FILE = path.join(__dirname, 'data.json');
@@ -382,6 +382,11 @@ function trackUsage(type, success, details = {}) {
     else data.usage.smsFailed++;
   }
   
+  // Notify admin on failures
+  if (!success) {
+    notifyAdminOnFailure(type, entry);
+  }
+  
   // Keep last 100 history entries
   data.usage.history.unshift(entry);
   if (data.usage.history.length > 100) {
@@ -389,6 +394,50 @@ function trackUsage(type, success, details = {}) {
   }
   
   saveData();
+}
+
+// Admin email for failure notifications
+const ADMIN_EMAIL = 'ticketchecker2020@gmail.com';
+
+// Notify admin on failures (rate limited to avoid spam)
+let lastAdminNotification = 0;
+async function notifyAdminOnFailure(type, entry) {
+  // Rate limit: max 1 notification per 5 minutes
+  const now = Date.now();
+  if (now - lastAdminNotification < 5 * 60 * 1000) {
+    console.log('⏳ Admin notification skipped (rate limited)');
+    return;
+  }
+  
+  try {
+    if (!emailTransporter) return;
+    
+    const subject = `⚠️ כישלון שליחת ${type === 'sms' ? 'SMS' : 'אימייל'} - Beitar Ticket Monitor`;
+    const html = `
+      <div dir="rtl" style="font-family: Arial; padding: 20px; background: #1a1a1a; color: #fff; border-radius: 10px;">
+        <h2 style="color: #ff6b6b;">⚠️ התראה על כישלון</h2>
+        <p><strong>סוג:</strong> ${type === 'sms' ? '📱 SMS' : '📧 אימייל'}</p>
+        <p><strong>זמן:</strong> ${new Date(entry.timestamp).toLocaleString('he-IL')}</p>
+        <p><strong>נמען:</strong> ${entry.to || 'לא ידוע'}</p>
+        <p><strong>שגיאה:</strong> <span style="color: #ff6b6b;">${entry.error || 'לא ידוע'}</span></p>
+        ${entry.message ? `<p><strong>הודעה:</strong> ${entry.message.substring(0, 100)}...</p>` : ''}
+        <hr style="border-color: #333;">
+        <p style="color: #888; font-size: 0.9em;">התראה אוטומטית מהשרת. בדוק את הדשבורד לפרטים נוספים.</p>
+      </div>
+    `;
+    
+    await emailTransporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: ADMIN_EMAIL,
+      subject: subject,
+      html: html
+    });
+    
+    lastAdminNotification = now;
+    console.log('📧 Admin notified about failure');
+  } catch (err) {
+    console.error('❌ Failed to notify admin:', err.message);
+  }
 }
 
 // Middleware
@@ -1728,7 +1777,7 @@ app.get('/pricing', (req, res) => {
 <body>
   <div class="container">
     <h1>🎟️ התראות כרטיסים בית"ר ירושלים</h1>
-    <p class="subtitle">קבל התראה מיידית כשכרטיסים למשחק זמינים!</p>
+    <p class="subtitle">קבל התראה מיידית כשכרטיסים למשחק שבחרת זמינים!</p>
     
     <div class="pricing-cards">
       <!-- Free Plan -->
