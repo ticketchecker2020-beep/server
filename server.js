@@ -11,21 +11,52 @@ const nodemailer = require('nodemailer');
 const fs = require('fs');
 const path = require('path');
 
+// Upstash Redis for persistent storage (survives deploys!)
+let redis = null;
+if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
+  const { Redis } = require('@upstash/redis');
+  redis = new Redis({
+    url: process.env.UPSTASH_REDIS_REST_URL,
+    token: process.env.UPSTASH_REDIS_REST_TOKEN
+  });
+  console.log('✅ Upstash Redis configured - data will persist!');
+} else {
+  console.log('⚠️ Upstash Redis not configured - using local file (data will be lost on deploy)');
+}
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Data file for persistent storage
+// Data file for fallback storage
 const DATA_FILE = path.join(__dirname, 'data.json');
+const REDIS_KEY = 'beitar:data';
 
-// Load or initialize data
-function loadData() {
+// Load data from Redis or local file
+async function loadData() {
+  // Try Redis first
+  if (redis) {
+    try {
+      const redisData = await redis.get(REDIS_KEY);
+      if (redisData) {
+        console.log('📦 Data loaded from Redis');
+        return typeof redisData === 'string' ? JSON.parse(redisData) : redisData;
+      }
+    } catch (e) {
+      console.error('❌ Redis load error:', e.message);
+    }
+  }
+  
+  // Fallback to local file
   try {
     if (fs.existsSync(DATA_FILE)) {
+      console.log('📦 Data loaded from local file');
       return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
     }
   } catch (e) {
     console.error('Error loading data:', e.message);
   }
+  
+  // Return default data structure
   return {
     usage: {
       emailsSent: 0,
@@ -34,15 +65,26 @@ function loadData() {
       smsFailed: 0,
       history: []
     },
-    licenses: {},  // License management
+    licenses: {},
     apiKeys: {},
-    subscribers: {},  // Email subscribers for server-side monitoring
+    subscribers: {},
     lastTicketCheck: null,
     lastKnownGames: []
   };
 }
 
-function saveData() {
+// Save data to Redis and local file
+async function saveData() {
+  // Save to Redis
+  if (redis) {
+    try {
+      await redis.set(REDIS_KEY, JSON.stringify(data));
+    } catch (e) {
+      console.error('❌ Redis save error:', e.message);
+    }
+  }
+  
+  // Also save to local file as backup
   try {
     fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
   } catch (e) {
@@ -50,7 +92,21 @@ function saveData() {
   }
 }
 
-let data = loadData();
+// Initialize data (will be loaded async)
+let data = {
+  usage: { emailsSent: 0, smsSent: 0, emailsFailed: 0, smsFailed: 0, history: [] },
+  licenses: {},
+  apiKeys: {},
+  subscribers: {},
+  lastTicketCheck: null,
+  lastKnownGames: []
+};
+
+// Load data on startup
+(async () => {
+  data = await loadData();
+  console.log(`📊 Loaded ${Object.keys(data.licenses).length} licenses, ${Object.keys(data.subscribers).length} subscribers`);
+})();
 
 // Pricing configuration
 // FREE = Email only (unlimited)
