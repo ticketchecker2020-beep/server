@@ -821,6 +821,92 @@ app.post('/api/update-games', (req, res) => {
   res.json({ success: true, message: 'Server now monitors all Beitar games automatically' });
 });
 
+// Add game to subscriber's monitored list
+app.post('/api/add-game', async (req, res) => {
+  const { subscriberId, game } = req.body;
+  
+  if (!subscriberId || !game) {
+    return res.status(400).json({ error: 'subscriberId and game required' });
+  }
+  
+  // Find or create subscriber
+  let subscriber = data.subscribers[subscriberId];
+  if (!subscriber) {
+    // Auto-create subscriber if not exists
+    subscriber = {
+      emails: [subscriberId.toLowerCase()],
+      phone: null,
+      licenseKey: null,
+      smsEnabled: false,
+      active: true,
+      registeredAt: new Date().toISOString(),
+      lastNotified: null,
+      monitoredGames: []
+    };
+    data.subscribers[subscriberId] = subscriber;
+    console.log(`📝 Auto-created subscriber: ${subscriberId}`);
+  }
+  
+  // Initialize games array if not exists
+  if (!subscriber.monitoredGames) {
+    subscriber.monitoredGames = [];
+  }
+  
+  // Check if game already exists
+  const existingGame = subscriber.monitoredGames.find(g => g.id === game.id);
+  if (existingGame) {
+    return res.json({ success: true, message: 'Game already monitored', gameId: game.id });
+  }
+  
+  // Add game
+  subscriber.monitoredGames.push({
+    ...game,
+    addedAt: new Date().toISOString(),
+    hasTickets: false,
+    notified: false
+  });
+  
+  await saveData();
+  console.log(`🎮 Game added to ${subscriberId}: ${game.name || game.opponent}`);
+  
+  res.json({ success: true, message: 'Game added to monitoring', gameId: game.id });
+});
+
+// Remove game from subscriber's monitored list
+app.post('/api/remove-game', async (req, res) => {
+  const { subscriberId, gameId } = req.body;
+  
+  if (!subscriberId || !gameId) {
+    return res.status(400).json({ error: 'subscriberId and gameId required' });
+  }
+  
+  const subscriber = data.subscribers[subscriberId];
+  if (!subscriber || !subscriber.monitoredGames) {
+    return res.status(404).json({ error: 'Subscriber or games not found' });
+  }
+  
+  subscriber.monitoredGames = subscriber.monitoredGames.filter(g => g.id !== gameId);
+  await saveData();
+  
+  console.log(`🎮 Game removed from ${subscriberId}: ${gameId}`);
+  res.json({ success: true, message: 'Game removed' });
+});
+
+// Get subscriber's monitored games
+app.get('/api/games/:subscriberId', async (req, res) => {
+  const { subscriberId } = req.params;
+  
+  const subscriber = data.subscribers[subscriberId];
+  if (!subscriber) {
+    return res.status(404).json({ error: 'Subscriber not found' });
+  }
+  
+  res.json({ 
+    success: true, 
+    games: subscriber.monitoredGames || [] 
+  });
+});
+
 // Send notification (called by extension)
 app.post('/api/notify', async (req, res) => {
   const { email, phone, games, licenseKey } = req.body;
@@ -1659,6 +1745,24 @@ app.get('/admin', async (req, res) => {
     `;
   }).join('');
   
+  // Monitored games list HTML
+  const monitoredGamesHtml = Object.entries(data.subscribers || {}).flatMap(([userId, sub]) => {
+    const games = sub.monitoredGames || [];
+    return games.map(game => {
+      const gameDate = game.eventDate ? new Date(game.eventDate).toLocaleDateString('he-IL') : '-';
+      const addedDate = game.addedAt ? new Date(game.addedAt).toLocaleDateString('he-IL') : '-';
+      return `
+        <tr>
+          <td>${userId}</td>
+          <td>⚽ ${game.name || game.opponent || '-'}</td>
+          <td>${gameDate}</td>
+          <td>${game.location || '-'}</td>
+          <td>${addedDate}</td>
+        </tr>
+      `;
+    });
+  }).join('');
+  
   // History list HTML - last 20 entries with full details
   const historyHtml = (data.usage.history || []).slice(0, 30).map((entry, idx) => {
     const icon = entry.type === 'sms' ? '📱' : '📧';
@@ -1823,6 +1927,24 @@ app.get('/admin', async (req, res) => {
         </thead>
         <tbody>
           ${subscribersHtml || '<tr><td colspan="7" style="text-align:center;">אין מנויים</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+    
+    <div class="section">
+      <h2>⚽ משחקים במעקב</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>יוזר</th>
+            <th>משחק</th>
+            <th>תאריך</th>
+            <th>מיקום</th>
+            <th>נוסף בתאריך</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${monitoredGamesHtml || '<tr><td colspan="5" style="text-align:center;">אין משחקים במעקב</td></tr>'}
         </tbody>
       </table>
     </div>
@@ -3277,7 +3399,6 @@ async function notifyAllSubscribers(games) {
     
     try {
       // Build email HTML
-      const emailChant = getRandomChant();
       const emailHtml = `
         <!DOCTYPE html>
         <html dir="rtl" lang="he">
@@ -3295,8 +3416,8 @@ async function notifyAllSubscribers(games) {
               </div>
             `).join('')}
             
-            <p style="text-align: center; margin-top: 30px; color: #ffd700; font-style: italic;">
-              💛🖤 ${emailChant}<br>
+            <p style="text-align: center; margin-top: 30px; color: #888;">
+              💛🖤 צהוב זה הצבע!<br>
               <a href="https://server-tickets-l0rq.onrender.com/unsubscribe?email=${encodeURIComponent(subscriberId)}" style="color: #666; font-size: 12px;">להסרה מהרשימה</a>
             </p>
           </div>
