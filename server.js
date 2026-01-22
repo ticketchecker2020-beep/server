@@ -28,9 +28,9 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Server version - UPDATE THIS ON EACH DEPLOY!
-const SERVER_VERSION = '2.7.1';
+const SERVER_VERSION = '2.8.0';
 const VERSION_DATE = '2026-01-22';
-const VERSION_NOTES = 'תיקון: אם אין משחקים במעקב - לא שולח התראות';
+const VERSION_NOTES = 'תיקונים: כפילות register, unsubscribe GET, lastKnownGames persist, retry logic';
 
 // ============================================
 // 📝 LOGGING SYSTEM
@@ -898,7 +898,7 @@ app.post('/api/subscribe', async (req, res) => {
   });
 });
 
-// Legacy unsubscribe
+// Legacy unsubscribe (POST)
 app.post('/api/unsubscribe', async (req, res) => {
   const { email, phone } = req.body;
   const subscriberId = email?.toLowerCase() || phone;
@@ -909,6 +909,42 @@ app.post('/api/unsubscribe', async (req, res) => {
     res.json({ success: true, message: 'Unsubscribed' });
   } else {
     res.status(404).json({ error: 'Subscriber not found' });
+  }
+});
+
+// Unsubscribe via GET (for email links)
+app.get('/unsubscribe', async (req, res) => {
+  const { email } = req.query;
+  const subscriberId = email?.toLowerCase();
+  
+  if (!subscriberId) {
+    return res.status(400).send(`
+      <html dir="rtl"><body style="font-family:Arial;text-align:center;padding:50px;">
+        <h1>❌ שגיאה</h1>
+        <p>חסר פרמטר אימייל</p>
+      </body></html>
+    `);
+  }
+
+  if (data.subscribers[subscriberId]) {
+    delete data.subscribers[subscriberId];
+    await saveData();
+    console.log(`📤 Unsubscribed via email link: ${subscriberId}`);
+    res.send(`
+      <html dir="rtl"><body style="font-family:Arial;text-align:center;padding:50px;background:#111;color:#fff;">
+        <h1 style="color:#ffd700;">✅ הוסרת בהצלחה!</h1>
+        <p>האימייל <strong>${email}</strong> הוסר מרשימת ההתראות.</p>
+        <p style="margin-top:30px;color:#888;">💛🖤 מקווים לראותך שוב ביציעים!</p>
+      </body></html>
+    `);
+  } else {
+    res.status(404).send(`
+      <html dir="rtl"><body style="font-family:Arial;text-align:center;padding:50px;background:#111;color:#fff;">
+        <h1 style="color:#ff6b6b;">❓ לא נמצא</h1>
+        <p>האימייל <strong>${email}</strong> לא נמצא ברשימת המנויים.</p>
+        <p style="color:#888;">אולי כבר הוסרת?</p>
+      </body></html>
+    `);
   }
 });
 
@@ -1496,7 +1532,8 @@ app.post('/api/admin/delete-subscriber', async (req, res) => {
 // ============ LICENSE MANAGEMENT ============
 
 // Self-registration for FREE TRIAL (public endpoint)
-app.post('/api/register', (req, res) => {
+// NOTE: Using /api/register-license to avoid conflict with /api/register for subscribers
+app.post('/api/register-license', (req, res) => {
   const { phone, email, name, coupon } = req.body;
   
   // Phone is REQUIRED for trial (to send SMS)
@@ -3801,12 +3838,35 @@ async function updateHasTicketsStatus(availableGames) {
   }
 }
 
+// Fetch with retry logic
+async function fetchWithRetry(url, options = {}, maxRetries = 3) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await fetch(url, options);
+      if (response.ok) {
+        return response;
+      }
+      // If not OK but not a network error, return as-is
+      if (attempt === maxRetries) {
+        return response;
+      }
+    } catch (error) {
+      if (attempt === maxRetries) {
+        throw error;
+      }
+      log.warn('tickets', `ניסיון ${attempt}/${maxRetries} נכשל, מנסה שוב...`, { error: error.message });
+      // Wait before retry (exponential backoff)
+      await new Promise(resolve => setTimeout(resolve, attempt * 2000));
+    }
+  }
+}
+
 // Check for new tickets and notify subscribers
 async function checkTicketsAndNotify() {
   log.info('tickets', 'בודק כרטיסים לבית"ר ירושלים...');
   
   try {
-    const response = await fetch(LEAAN_URL, {
+    const response = await fetchWithRetry(LEAAN_URL, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         'Accept': 'text/html,application/xhtml+xml',
@@ -3854,7 +3914,9 @@ async function checkTicketsAndNotify() {
       saveData();
     } else {
       console.log('😴 No tickets available for Beitar Jerusalem games');
-      data.lastKnownGames = [];
+      // DON'T reset lastKnownGames - keep history to avoid duplicate notifications
+      // Only clear the cache since no tickets are currently available
+      data.availableGamesCache = [];
       saveData();
     }
     
