@@ -28,9 +28,9 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Server version - UPDATE THIS ON EACH DEPLOY!
-const SERVER_VERSION = '2.7.0';
+const SERVER_VERSION = '2.7.1';
 const VERSION_DATE = '2026-01-22';
-const VERSION_NOTES = 'תיקון: התראות רק על משחקים שבמעקב (monitoredGames)';
+const VERSION_NOTES = 'תיקון: אם אין משחקים במעקב - לא שולח התראות';
 
 // ============================================
 // 📝 LOGGING SYSTEM
@@ -3913,8 +3913,9 @@ async function notifyAllSubscribers(games) {
         log.info('email', `${subscriberId}: ${gamesToNotify.length}/${games.length} משחקים מתאימים למעקב`, 
           { subscriber: subscriberId, matched: gamesToNotify.length, total: games.length });
       } else {
-        // No monitoredGames - subscriber gets ALL Beitar games
-        log.info('email', `${subscriberId}: מקבל כל משחקי בית"ר (אין רשימת מעקב)`, { subscriber: subscriberId });
+        // No monitoredGames - subscriber hasn't selected any games, skip
+        log.info('email', `${subscriberId}: אין משחקים במעקב - לא שולח התראה`, { subscriber: subscriberId });
+        continue;
       }
       
       // Skip if no matching games
