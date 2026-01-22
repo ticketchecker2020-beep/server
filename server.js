@@ -28,9 +28,9 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Server version - UPDATE THIS ON EACH DEPLOY!
-const SERVER_VERSION = '2.8.2';
+const SERVER_VERSION = '2.8.3';
 const VERSION_DATE = '2026-01-22';
-const VERSION_NOTES = 'תיקון: test-email לא דורש admin password';
+const VERSION_NOTES = 'תיקון: זיהוי קוד קופון vs מפתח רישיון';
 
 // ============================================
 // 📝 LOGGING SYSTEM
@@ -3613,6 +3613,17 @@ app.get('/api/license/validate', (req, res) => {
   
   if (!licenseKey) {
     return res.status(400).json({ valid: false, reason: 'No license key provided' });
+  }
+  
+  // Check if this is a coupon code (not a license)
+  const upperKey = licenseKey.toUpperCase();
+  if (COUPONS[upperKey]) {
+    return res.status(403).json({
+      valid: false,
+      reason: 'זהו קוד קופון ולא מפתח רישיון. הכנס את הקוד בשלב הרישום.',
+      isCoupon: true,
+      couponCode: upperKey
+    });
   }
   
   const result = isLicenseValid(licenseKey);
