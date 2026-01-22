@@ -28,9 +28,9 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Server version - UPDATE THIS ON EACH DEPLOY!
-const SERVER_VERSION = '2.5.2';
+const SERVER_VERSION = '2.5.3';
 const VERSION_DATE = '2026-01-22';
-const VERSION_NOTES = 'תיקון: עדכון hasTickets בכל בדיקה (לא רק במשחקים חדשים)';
+const VERSION_NOTES = 'תיקון קריטי: המרת &quot; ל-" לזיהוי משחקים מ-leaan.co.il';
 
 // Data file for fallback storage
 const DATA_FILE = path.join(__dirname, 'data.json');
@@ -3587,6 +3587,11 @@ const CHECK_INTERVAL = 5 * 60 * 1000; // Check every 5 minutes
 // Parse tickets from leaan.co.il HTML - looking for Beitar Jerusalem games
 function parseTicketsFromHtml(html) {
   const games = [];
+  
+  // CRITICAL FIX: Convert HTML entities to actual characters
+  // leaan.co.il uses &quot; in HTML elements (4 occurrences) and ״ (U+05F4 Hebrew Gershayim) in JSON data (9 occurrences)
+  // Without this conversion, the regex won't find games like "בית"ר ירושלים - הפועל חיפה"
+  html = html.replace(/&quot;/g, '"');
   
   // Look for Beitar Jerusalem games specifically
   // The HTML shows games like "בית"ר ירושלים - הפועל חיפה"
