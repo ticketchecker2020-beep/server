@@ -28,9 +28,9 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Server version - UPDATE THIS ON EACH DEPLOY!
-const SERVER_VERSION = '2.3.0';
+const SERVER_VERSION = '2.4.2';
 const VERSION_DATE = '2026-01-22';
-const VERSION_NOTES = 'Admin: manual license creation for failed payments';
+const VERSION_NOTES = 'Server auto-updates hasTickets for all subscribers when tickets found';
 
 // Data file for fallback storage
 const DATA_FILE = path.join(__dirname, 'data.json');
@@ -313,7 +313,7 @@ setInterval(checkLicenseExpiry, 6 * 60 * 60 * 1000);
 function authenticateApiKey(req, res, next) {
   // Skip auth for public endpoints and admin (admin has its own password check)
   // Note: req.path here is relative to /api, so /api/test-email becomes /test-email
-  const publicPaths = ['/health', '/pricing', '/register', '/coupon/validate', '/license/validate', '/admin', '/create-pending-order', '/webhook', '/add-game', '/remove-game', '/games', '/test-email', '/test-sms'];
+  const publicPaths = ['/health', '/pricing', '/register', '/coupon/validate', '/license/validate', '/admin', '/create-pending-order', '/webhook', '/add-game', '/remove-game', '/games', '/test-email', '/test-sms', '/activate-order'];
   if (publicPaths.some(p => req.path === p || req.path.startsWith(p))) {
     return next();
   }
@@ -960,6 +960,30 @@ app.get('/api/games/:subscriberId', async (req, res) => {
     success: true, 
     games: subscriber.monitoredGames || [] 
   });
+});
+
+// Update game ticket status (called when tickets become available)
+app.post('/api/update-game-status', async (req, res) => {
+  const { subscriberId, gameId, hasTickets } = req.body;
+  
+  if (!subscriberId || !gameId) {
+    return res.status(400).json({ error: 'subscriberId and gameId required' });
+  }
+  
+  const subscriber = data.subscribers[subscriberId];
+  if (!subscriber || !subscriber.monitoredGames) {
+    return res.status(404).json({ error: 'Subscriber not found' });
+  }
+  
+  const game = subscriber.monitoredGames.find(g => g.id === gameId);
+  if (game) {
+    game.hasTickets = hasTickets;
+    game.ticketsFoundAt = hasTickets ? new Date().toISOString() : null;
+    await saveData();
+    console.log(`🎫 Game ${gameId} status updated: hasTickets=${hasTickets}`);
+  }
+  
+  res.json({ success: true });
 });
 
 // Send notification (called by extension)
@@ -2353,8 +2377,13 @@ app.post('/api/create-pending-order', async (req, res) => {
     });
   }
   
-  // Build PayBox URL for paid orders
-  const payboxUrl = 'https://links.payboxapp.com/IdiXnIQ13Zb';
+  // Build PayBox URL for paid orders with return URL that includes order ID
+  const basePayboxUrl = process.env.PAYBOX_URL || 'https://links.payboxapp.com/IdiXnIQ13Zb';
+  const returnUrl = encodeURIComponent(`https://server-tickets-l0rq.onrender.com/payment-complete?order=${orderId}`);
+  // Some PayBox links support adding params
+  const payboxUrl = basePayboxUrl.includes('?') 
+    ? `${basePayboxUrl}&return_url=${returnUrl}&order_id=${orderId}` 
+    : `${basePayboxUrl}?return_url=${returnUrl}&order_id=${orderId}`;
   
   res.json({
     success: true,
@@ -2536,6 +2565,238 @@ app.get('/webhook/paybox', (req, res) => {
   // Process same as POST
   req.body = req.query;
   return app._router.handle(req, res, () => {});
+});
+
+// Payment complete page - shown after user returns from PayBox
+app.get('/payment-complete', async (req, res) => {
+  const orderId = req.query.order;
+  
+  // Find pending order
+  const pendingOrder = pendingOrders[orderId];
+  
+  res.send(`
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>אישור תשלום - בית"ר ירושלים</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { 
+      font-family: 'Segoe UI', Arial, sans-serif; 
+      background: #000;
+      min-height: 100vh; 
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .container { 
+      max-width: 500px; 
+      text-align: center;
+      background: rgba(255,255,255,0.05);
+      padding: 40px;
+      border-radius: 20px;
+      border: 2px solid #ffd700;
+    }
+    h1 { color: #ffd700; margin-bottom: 20px; }
+    p { color: #ccc; margin-bottom: 20px; line-height: 1.6; }
+    .btn {
+      display: inline-block;
+      padding: 15px 40px;
+      background: linear-gradient(135deg, #ffd700, #ffaa00);
+      color: #000;
+      text-decoration: none;
+      border-radius: 30px;
+      font-weight: bold;
+      font-size: 1.1em;
+      cursor: pointer;
+      border: none;
+      margin: 10px;
+    }
+    .btn:hover { transform: scale(1.05); }
+    .btn-secondary { background: #333; color: #fff; }
+    .status { margin: 20px 0; padding: 15px; border-radius: 10px; }
+    .status.pending { background: rgba(251,191,36,0.2); border: 1px solid #fbbf24; }
+    .status.completed { background: rgba(74,222,128,0.2); border: 1px solid #4ade80; }
+    .status.not-found { background: rgba(255,107,107,0.2); border: 1px solid #ff6b6b; }
+    .license-key { 
+      font-family: monospace; 
+      font-size: 1.3em; 
+      color: #ffd700; 
+      background: #222;
+      padding: 15px;
+      border-radius: 10px;
+      margin: 15px 0;
+      word-break: break-all;
+    }
+    #result { margin-top: 20px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎟️ אישור תשלום</h1>
+    
+    ${pendingOrder ? `
+      ${pendingOrder.status === 'completed' ? `
+        <div class="status completed">
+          <p>✅ התשלום אושר! הרישיון שלך:</p>
+          <div class="license-key">${pendingOrder.licenseKey || 'בודק...'}</div>
+          <p>נשלח גם לאימייל: ${pendingOrder.email}</p>
+        </div>
+      ` : `
+        <div class="status pending">
+          <p>⏳ ההזמנה שלך נמצאה!</p>
+          <p><strong>אימייל:</strong> ${pendingOrder.email}</p>
+          <p><strong>תוכנית:</strong> ${pendingOrder.plan === 'yearly' ? 'שנתי' : 'חודשי'}</p>
+          <p><strong>מחיר:</strong> ₪${pendingOrder.finalPrice}</p>
+        </div>
+        
+        <p>אם שילמת בהצלחה, לחץ על הכפתור להפעלת הרישיון:</p>
+        <button class="btn" onclick="activateLicense()">🚀 הפעל את הרישיון שלי</button>
+        <div id="result"></div>
+        
+        <p style="margin-top: 30px; font-size: 0.9em; color: #888;">
+          לא שילמת עדיין? <a href="/pricing" style="color: #ffd700;">חזור לדף המחירים</a>
+        </p>
+      `}
+    ` : `
+      <div class="status not-found">
+        <p>❌ לא נמצאה הזמנה</p>
+        <p>אם שילמת ולא קיבלת רישיון, פנה אלינו.</p>
+      </div>
+      <a href="/pricing" class="btn">חזרה למחירים</a>
+    `}
+    
+    <p style="margin-top: 30px; color: #666;">💛🖤 צהוב זה הצבע!</p>
+  </div>
+  
+  <script>
+    async function activateLicense() {
+      const resultDiv = document.getElementById('result');
+      resultDiv.innerHTML = '<p style="color: #fbbf24;">⏳ מפעיל רישיון...</p>';
+      
+      try {
+        const res = await fetch('/api/activate-order', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderId: '${orderId}' })
+        });
+        const data = await res.json();
+        
+        if (data.success) {
+          resultDiv.innerHTML = \`
+            <div style="background: rgba(74,222,128,0.2); padding: 20px; border-radius: 10px; margin-top: 15px;">
+              <p style="color: #4ade80; font-size: 1.2em;">✅ הרישיון הופעל בהצלחה!</p>
+              <p style="margin-top: 10px;">מפתח הרישיון שלך:</p>
+              <div class="license-key">\${data.licenseKey}</div>
+              <p style="color: #888;">נשלח גם לאימייל ול-SMS</p>
+            </div>
+          \`;
+        } else {
+          resultDiv.innerHTML = '<p style="color: #ff6b6b;">❌ ' + (data.error || 'שגיאה') + '</p>';
+        }
+      } catch (e) {
+        resultDiv.innerHTML = '<p style="color: #ff6b6b;">❌ שגיאה: ' + e.message + '</p>';
+      }
+    }
+  </script>
+</body>
+</html>
+  `);
+});
+
+// API to manually activate an order (after payment confirmed)
+app.post('/api/activate-order', async (req, res) => {
+  const { orderId } = req.body;
+  
+  const pendingOrder = pendingOrders[orderId];
+  
+  if (!pendingOrder) {
+    return res.status(404).json({ error: 'הזמנה לא נמצאה' });
+  }
+  
+  if (pendingOrder.status === 'completed') {
+    return res.json({ success: true, licenseKey: pendingOrder.licenseKey, message: 'הרישיון כבר הופעל' });
+  }
+  
+  // Create license
+  const plan = pendingOrder.plan;
+  const planConfig = plan === 'yearly' ? PRICING.yearly : PRICING.monthly;
+  
+  const licenseKey = generateLicenseKey();
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + planConfig.days);
+  
+  data.licenses[licenseKey] = {
+    key: licenseKey,
+    userName: pendingOrder.name || pendingOrder.email.split('@')[0],
+    plan,
+    userEmail: pendingOrder.email,
+    userPhone: pendingOrder.phone,
+    active: true,
+    createdAt: new Date().toISOString(),
+    expiresAt: expiresAt.toISOString(),
+    smsRemaining: planConfig.smsLimit,
+    smsLimit: planConfig.smsLimit,
+    usage: { emails: 0, sms: 0 },
+    orderId,
+    activatedBy: 'user-confirm'
+  };
+  
+  await saveData();
+  
+  // Mark order as completed
+  pendingOrders[orderId].status = 'completed';
+  pendingOrders[orderId].licenseKey = licenseKey;
+  
+  // Send license by email
+  const emailHtml = `
+    <!DOCTYPE html>
+    <html dir="rtl" lang="he">
+    <head><meta charset="UTF-8"></head>
+    <body style="font-family: Arial; background: #111; color: #fff; padding: 20px;">
+      <div style="max-width: 500px; margin: 0 auto; background: #1a1a1a; border-radius: 15px; padding: 30px; border: 2px solid #ffd700;">
+        <h1 style="color: #ffd700; text-align: center;">🎟️ ברוך הבא!</h1>
+        <p style="text-align: center; color: #ccc;">תודה שנרשמת להתראות כרטיסים של בית"ר ירושלים!</p>
+        
+        <div style="background: #222; padding: 20px; border-radius: 10px; margin: 20px 0;">
+          <p style="margin: 0; color: #888;">מפתח הרשיון שלך:</p>
+          <p style="font-size: 1.5em; color: #ffd700; font-family: monospace; margin: 10px 0; word-break: break-all;">
+            ${licenseKey}
+          </p>
+        </div>
+        
+        <div style="background: #222; padding: 15px; border-radius: 10px; margin: 10px 0;">
+          <p style="margin: 5px 0;">📅 תוקף: עד ${expiresAt.toLocaleDateString('he-IL')}</p>
+          <p style="margin: 5px 0;">📱 SMS נותרו: ${planConfig.smsLimit}</p>
+          <p style="margin: 5px 0;">📧 אימייל: ללא הגבלה</p>
+        </div>
+        
+        <h3 style="color: #ffd700; margin-top: 30px;">איך להשתמש:</h3>
+        <ol style="color: #ccc; line-height: 2;">
+          <li>התקן את התוסף לכרום</li>
+          <li>פתח את התוסף ולחץ על "SMS בתשלום"</li>
+          <li>הכנס את מפתח הרשיון</li>
+          <li>זהו! תקבל SMS כשיש כרטיסים</li>
+        </ol>
+        
+        <p style="text-align: center; margin-top: 30px; color: #888;">
+          💛🖤 בהצלחה במשחקים!
+        </p>
+      </div>
+    </body>
+    </html>
+  `;
+  
+  await sendEmail(pendingOrder.email, '🎟️ מפתח הרשיון שלך - בית"ר ירושלים', emailHtml);
+  await sendSMS(pendingOrder.phone, `בית"ר: מפתח הרשיון שלך: ${licenseKey}`);
+  
+  console.log(`✅ License ${licenseKey} activated by user for ${pendingOrder.email}`);
+  
+  res.json({ success: true, licenseKey });
 });
 
 // Free license success page
@@ -3342,6 +3603,25 @@ async function notifyAllSubscribers(games) {
   }
   
   console.log(`📧 Notifying ${subscriberIds.length} subscribers...`);
+  
+  // Update hasTickets status for all monitored games that match available games
+  const availableGameIds = new Set(games.map(g => g.id));
+  for (const subscriberId of subscriberIds) {
+    const subscriber = subscribers[subscriberId];
+    if (subscriber.monitoredGames) {
+      for (const game of subscriber.monitoredGames) {
+        // Check if this game matches any available game (by id or by name)
+        const isAvailable = availableGameIds.has(game.id) || 
+          games.some(g => g.name && game.name && g.name.includes(game.opponent || game.name));
+        
+        if (isAvailable && !game.hasTickets) {
+          game.hasTickets = true;
+          game.ticketsFoundAt = new Date().toISOString();
+          console.log(`  🎫 Updated game ${game.name || game.id}: hasTickets=true`);
+        }
+      }
+    }
+  }
   
   let emailsSent = 0;
   let smsSent = 0;
