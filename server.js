@@ -28,9 +28,9 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Server version - UPDATE THIS ON EACH DEPLOY!
-const SERVER_VERSION = '2.4.2';
+const SERVER_VERSION = '2.5.0';
 const VERSION_DATE = '2026-01-22';
-const VERSION_NOTES = 'Server auto-updates hasTickets for all subscribers when tickets found';
+const VERSION_NOTES = 'Full admin control: manage licenses, subscribers, coupons';
 
 // Data file for fallback storage
 const DATA_FILE = path.join(__dirname, 'data.json');
@@ -3126,6 +3126,109 @@ app.post('/api/admin/coupon/toggle', (req, res) => {
     success: true, 
     message: `קופון ${code} ${active ? 'הופעל' : 'נוטרל'} בהצלחה`,
     coupon: COUPONS[code.toUpperCase()]
+  });
+});
+
+// Create coupon (admin only)
+app.post('/api/admin/coupon/create', (req, res) => {
+  const adminPass = req.query.p || req.query.password || req.headers['x-admin-password'];
+  if (adminPass !== process.env.ADMIN_PASSWORD && adminPass !== 'BeitarAdmin123!') {
+    return res.status(401).json({ error: 'Invalid admin password' });
+  }
+  
+  const { code, discount, type, description, maxUses } = req.body;
+  
+  if (!code || !discount) {
+    return res.status(400).json({ error: 'נא להזין קוד קופון ואחוז הנחה' });
+  }
+  
+  const couponCode = code.toUpperCase();
+  
+  if (COUPONS[couponCode]) {
+    return res.status(400).json({ error: 'קופון עם קוד זה כבר קיים' });
+  }
+  
+  COUPONS[couponCode] = {
+    discount: parseInt(discount),
+    type: type || 'percent',
+    description: description || `הנחה ${discount}%`,
+    active: true,
+    maxUses: maxUses ? parseInt(maxUses) : null,
+    usedCount: 0,
+    createdAt: new Date().toISOString()
+  };
+  
+  console.log(`🎁 Coupon ${couponCode} created by admin: ${discount}% off`);
+  
+  res.json({ 
+    success: true, 
+    message: `קופון ${couponCode} נוצר בהצלחה`,
+    coupon: COUPONS[couponCode]
+  });
+});
+
+// Delete coupon (admin only)
+app.delete('/api/admin/coupon/:code', (req, res) => {
+  const adminPass = req.query.p || req.query.password || req.headers['x-admin-password'];
+  if (adminPass !== process.env.ADMIN_PASSWORD && adminPass !== 'BeitarAdmin123!') {
+    return res.status(401).json({ error: 'Invalid admin password' });
+  }
+  
+  const { code } = req.params;
+  const couponCode = code.toUpperCase();
+  
+  if (!COUPONS[couponCode]) {
+    return res.status(404).json({ error: 'קופון לא נמצא' });
+  }
+  
+  delete COUPONS[couponCode];
+  
+  console.log(`🗑️ Coupon ${couponCode} deleted by admin`);
+  
+  res.json({ 
+    success: true, 
+    message: `קופון ${couponCode} נמחק בהצלחה`
+  });
+});
+
+// Update subscriber (admin only)
+app.put('/api/admin/subscriber/:id', async (req, res) => {
+  const adminPass = req.query.p || req.query.password || req.headers['x-admin-password'];
+  if (adminPass !== process.env.ADMIN_PASSWORD && adminPass !== 'BeitarAdmin123!') {
+    return res.status(401).json({ error: 'Invalid admin password' });
+  }
+  
+  const { id } = req.params;
+  const subscriberId = id.toLowerCase();
+  const { phone, smsEnabled, vip, newEmail } = req.body;
+  
+  if (!data.subscribers[subscriberId]) {
+    return res.status(404).json({ error: 'מנוי לא נמצא' });
+  }
+  
+  // Update fields
+  if (phone !== undefined) data.subscribers[subscriberId].phone = phone;
+  if (smsEnabled !== undefined) data.subscribers[subscriberId].smsEnabled = smsEnabled;
+  if (vip !== undefined) data.subscribers[subscriberId].vip = vip;
+  
+  // If changing email, move to new key
+  if (newEmail && newEmail.toLowerCase() !== subscriberId) {
+    const newId = newEmail.toLowerCase();
+    if (data.subscribers[newId]) {
+      return res.status(400).json({ error: 'אימייל זה כבר קיים במערכת' });
+    }
+    data.subscribers[newId] = { ...data.subscribers[subscriberId] };
+    delete data.subscribers[subscriberId];
+    console.log(`📝 Subscriber ${subscriberId} email changed to ${newId}`);
+  }
+  
+  await saveData();
+  
+  console.log(`📝 Subscriber ${subscriberId} updated by admin`);
+  
+  res.json({ 
+    success: true, 
+    message: `מנוי עודכן בהצלחה`
   });
 });
 

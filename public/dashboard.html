@@ -249,9 +249,9 @@
         <div class="stat-value" id="emailsFailed">-</div>
         <div class="stat-label">❌ אימיילים נכשלו</div>
       </div>
-      <div class="stat-card warning">
+      <div class="stat-card warning" style="cursor: pointer;" onclick="refreshSmsBalance()" title="לחץ לרענון">
         <div class="stat-value" id="smsBalance">-</div>
-        <div class="stat-label">💰 יתרת SMS</div>
+        <div class="stat-label">💰 יתרת SMS <span style="font-size: 0.7em;">🔄</span></div>
       </div>
       <div class="stat-card">
         <div class="stat-value" id="subscriberCount">-</div>
@@ -329,6 +329,7 @@
               <th>תוכנית</th>
               <th>סטטוס</th>
               <th>תפוגה</th>
+              <th>פעולות</th>
             </tr>
           </thead>
           <tbody id="licensesBody"></tbody>
@@ -340,6 +341,18 @@
     <div id="tab-coupons" class="tab-content">
       <div class="section">
         <h2>🎁 קופונים פעילים</h2>
+        
+        <!-- Create Coupon Form -->
+        <div style="background: #1a1a1a; padding: 15px; border-radius: 10px; margin-bottom: 20px;">
+          <h4 style="margin-bottom: 15px;">➕ יצירת קופון חדש</h4>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;">
+            <input type="text" id="newCouponCode" placeholder="קוד (לדוגמה: BEITAR50)" style="padding: 8px; border-radius: 5px; background: #222; color: #fff; border: 1px solid #444;">
+            <input type="number" id="newCouponDiscount" placeholder="אחוז הנחה" min="1" max="100" style="padding: 8px; border-radius: 5px; background: #222; color: #fff; border: 1px solid #444;">
+            <input type="text" id="newCouponDesc" placeholder="תיאור (אופציונלי)" style="padding: 8px; border-radius: 5px; background: #222; color: #fff; border: 1px solid #444;">
+            <button class="btn btn-gold" onclick="createCoupon()">🎁 צור קופון</button>
+          </div>
+        </div>
+        
         <table>
           <thead>
             <tr>
@@ -347,6 +360,7 @@
               <th>הנחה</th>
               <th>תיאור</th>
               <th>סטטוס</th>
+              <th>פעולות</th>
             </tr>
           </thead>
           <tbody id="couponsBody"></tbody>
@@ -683,8 +697,10 @@
             <td>${vipStatus}</td>
             <td>${regDate}</td>
             <td>
-              <button class="btn btn-sm btn-success" onclick="enableVip('${escapeHtml(key)}')">👑 VIP</button>
-              <button class="btn btn-sm btn-danger" onclick="deleteSubscriber('${escapeHtml(key)}')">🗑️</button>
+              <button class="btn btn-sm btn-info" onclick="editSubscriber('${escapeHtml(key)}', '${escapeHtml(sub.phone || '')}', ${sub.smsEnabled || false})" title="עריכה">✏️</button>
+              <button class="btn btn-sm btn-success" onclick="enableVip('${escapeHtml(key)}')" title="הפעל VIP">👑</button>
+              <button class="btn btn-sm btn-${sub.smsEnabled ? 'warning' : 'primary'}" onclick="toggleSms('${escapeHtml(key)}', ${!sub.smsEnabled})" title="${sub.smsEnabled ? 'כבה SMS' : 'הפעל SMS'}">${sub.smsEnabled ? '📴' : '📱'}</button>
+              <button class="btn btn-sm btn-danger" onclick="deleteSubscriber('${escapeHtml(key)}')" title="מחק">🗑️</button>
             </td>
           </tr>
         `;
@@ -700,7 +716,7 @@
       const entries = Object.entries(licenses);
       
       if (entries.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #888;">אין רישיונות עדיין</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #888;">אין רישיונות עדיין</td></tr>';
         return;
       }
       
@@ -719,6 +735,11 @@
             <td>${lic.plan || 'free'}</td>
             <td>${statusText}</td>
             <td>${expiryDate}</td>
+            <td>
+              <button class="btn btn-sm btn-info" onclick="extendLicense('${key}')" title="הארך 30 יום">📅</button>
+              <button class="btn btn-sm btn-success" onclick="toggleLicense('${key}', ${!lic.active})" title="${lic.active ? 'השבת' : 'הפעל'}">${lic.active ? '⏸️' : '▶️'}</button>
+              <button class="btn btn-sm btn-danger" onclick="deleteLicense('${key}')" title="מחק">🗑️</button>
+            </td>
           </tr>
         `;
       }).join('');
@@ -730,7 +751,7 @@
       const entries = Object.entries(coupons);
       
       if (entries.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #888;">אין קופונים</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #888;">אין קופונים</td></tr>';
         return;
       }
       
@@ -744,6 +765,10 @@
             <td>${discountText}</td>
             <td>${escapeHtml(coupon.description)}</td>
             <td>${statusText}</td>
+            <td>
+              <button class="btn btn-sm btn-${coupon.active ? 'warning' : 'success'}" onclick="toggleCoupon('${code}', ${!coupon.active})">${coupon.active ? '⏸️ השבת' : '▶️ הפעל'}</button>
+              <button class="btn btn-sm btn-danger" onclick="deleteCoupon('${code}')">🗑️ מחק</button>
+            </td>
           </tr>
         `;
       }).join('');
@@ -852,6 +877,183 @@
         }
       } catch (e) {
         alert('❌ שגיאה: ' + e.message);
+      }
+    }
+    
+    // Toggle SMS for subscriber
+    async function toggleSms(subscriberId, enable) {
+      try {
+        const res = await apiCall(`/api/admin/subscriber/${encodeURIComponent(subscriberId)}`, 'PUT', { smsEnabled: enable });
+        if (res.success) {
+          alert(enable ? '✅ SMS הופעל!' : '✅ SMS כובה!');
+          loadData();
+        } else {
+          alert('❌ ' + (res.error || 'נכשל'));
+        }
+      } catch (e) {
+        alert('❌ שגיאה: ' + e.message);
+      }
+    }
+    
+    // Edit subscriber
+    async function editSubscriber(subscriberId, currentPhone, currentSms) {
+      const newPhone = prompt('טלפון חדש:', currentPhone);
+      if (newPhone === null) return;
+      
+      try {
+        const res = await apiCall(`/api/admin/subscriber/${encodeURIComponent(subscriberId)}`, 'PUT', { phone: newPhone });
+        if (res.success) {
+          alert('✅ מנוי עודכן!');
+          loadData();
+        } else {
+          alert('❌ ' + (res.error || 'נכשל'));
+        }
+      } catch (e) {
+        alert('❌ שגיאה: ' + e.message);
+      }
+    }
+    
+    // Delete license
+    async function deleteLicense(licenseKey) {
+      if (!confirm(`למחוק את הרישיון ${licenseKey.substring(0, 15)}...?`)) return;
+      
+      try {
+        const res = await fetch(`${BASE_URL}/api/admin/licenses/${encodeURIComponent(licenseKey)}`, {
+          method: 'DELETE',
+          headers: { 'X-Admin-Password': adminPassword }
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert('✅ רישיון נמחק!');
+          loadData();
+        } else {
+          alert('❌ ' + (data.error || 'נכשל'));
+        }
+      } catch (e) {
+        alert('❌ שגיאה: ' + e.message);
+      }
+    }
+    
+    // Toggle license active status
+    async function toggleLicense(licenseKey, active) {
+      try {
+        const res = await fetch(`${BASE_URL}/api/admin/licenses/${encodeURIComponent(licenseKey)}`, {
+          method: 'PUT',
+          headers: { 
+            'Content-Type': 'application/json',
+            'X-Admin-Password': adminPassword 
+          },
+          body: JSON.stringify({ active })
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert(active ? '✅ רישיון הופעל!' : '✅ רישיון הושבת!');
+          loadData();
+        } else {
+          alert('❌ ' + (data.error || 'נכשל'));
+        }
+      } catch (e) {
+        alert('❌ שגיאה: ' + e.message);
+      }
+    }
+    
+    // Extend license by 30 days
+    async function extendLicense(licenseKey) {
+      const days = prompt('כמה ימים להאריך?', '30');
+      if (!days) return;
+      
+      try {
+        const res = await fetch(`${BASE_URL}/api/admin/licenses/${encodeURIComponent(licenseKey)}`, {
+          method: 'PUT',
+          headers: { 
+            'Content-Type': 'application/json',
+            'X-Admin-Password': adminPassword 
+          },
+          body: JSON.stringify({ extendDays: parseInt(days) })
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert(`✅ רישיון הוארך ב-${days} ימים!`);
+          loadData();
+        } else {
+          alert('❌ ' + (data.error || 'נכשל'));
+        }
+      } catch (e) {
+        alert('❌ שגיאה: ' + e.message);
+      }
+    }
+    
+    // Create coupon
+    async function createCoupon() {
+      const code = document.getElementById('newCouponCode').value;
+      const discount = document.getElementById('newCouponDiscount').value;
+      const description = document.getElementById('newCouponDesc').value;
+      
+      if (!code || !discount) {
+        alert('נא להזין קוד קופון ואחוז הנחה');
+        return;
+      }
+      
+      try {
+        const res = await apiCall('/api/admin/coupon/create', 'POST', { code, discount, description });
+        if (res.success) {
+          alert('✅ קופון נוצר!');
+          document.getElementById('newCouponCode').value = '';
+          document.getElementById('newCouponDiscount').value = '';
+          document.getElementById('newCouponDesc').value = '';
+          loadData();
+        } else {
+          alert('❌ ' + (res.error || 'נכשל'));
+        }
+      } catch (e) {
+        alert('❌ שגיאה: ' + e.message);
+      }
+    }
+    
+    // Toggle coupon
+    async function toggleCoupon(code, active) {
+      try {
+        const res = await apiCall('/api/admin/coupon/toggle', 'POST', { code, active });
+        if (res.success) {
+          alert(active ? '✅ קופון הופעל!' : '✅ קופון הושבת!');
+          loadData();
+        } else {
+          alert('❌ ' + (res.error || 'נכשל'));
+        }
+      } catch (e) {
+        alert('❌ שגיאה: ' + e.message);
+      }
+    }
+    
+    // Delete coupon
+    async function deleteCoupon(code) {
+      if (!confirm(`למחוק את הקופון ${code}?`)) return;
+      
+      try {
+        const res = await fetch(`${BASE_URL}/api/admin/coupon/${encodeURIComponent(code)}`, {
+          method: 'DELETE',
+          headers: { 'X-Admin-Password': adminPassword }
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert('✅ קופון נמחק!');
+          loadData();
+        } else {
+          alert('❌ ' + (data.error || 'נכשל'));
+        }
+      } catch (e) {
+        alert('❌ שגיאה: ' + e.message);
+      }
+    }
+    
+    // Refresh SMS balance
+    async function refreshSmsBalance() {
+      document.getElementById('smsBalance').textContent = '🔄...';
+      try {
+        await loadData();
+        alert('✅ יתרת SMS עודכנה!');
+      } catch (e) {
+        alert('❌ שגיאה ברענון');
       }
     }
     
