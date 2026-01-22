@@ -28,9 +28,9 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Server version - UPDATE THIS ON EACH DEPLOY!
-const SERVER_VERSION = '2.8.0';
+const SERVER_VERSION = '2.8.1';
 const VERSION_DATE = '2026-01-22';
-const VERSION_NOTES = 'תיקונים: כפילות register, unsubscribe GET, lastKnownGames persist, retry logic';
+const VERSION_NOTES = 'תיקון: הוספת PRICING.trial חסר';
 
 // ============================================
 // 📝 LOGGING SYSTEM
@@ -159,6 +159,7 @@ let data = {
 // PAID = Email + SMS
 const PRICING = {
   free: { name: 'חינם', price: 0, smsLimit: 0, emailUnlimited: true },
+  trial: { name: 'ניסיון', price: 0, smsLimit: 0, freeSms: 3, emailUnlimited: true },
   monthly: { name: 'SMS חודשי', days: 30, price: 29, smsLimit: 50 },
   yearly: { name: 'SMS שנתי', days: 365, price: 199, smsLimit: 500 }
 };
