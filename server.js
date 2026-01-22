@@ -28,9 +28,9 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Server version - UPDATE THIS ON EACH DEPLOY!
-const SERVER_VERSION = '2.8.1';
+const SERVER_VERSION = '2.8.2';
 const VERSION_DATE = '2026-01-22';
-const VERSION_NOTES = 'תיקון: הוספת PRICING.trial חסר';
+const VERSION_NOTES = 'תיקון: test-email לא דורש admin password';
 
 // ============================================
 // 📝 LOGGING SYSTEM
@@ -1198,14 +1198,8 @@ app.post('/api/notify', async (req, res) => {
   });
 });
 
-// Test email endpoint
+// Test email endpoint (allows users to test their own email)
 app.post('/api/test-email', async (req, res) => {
-  // Check admin password
-  const adminPassword = req.headers['x-admin-password'] || req.query.p;
-  if (adminPassword !== (process.env.ADMIN_PASSWORD || 'BeitarAdmin123!')) {
-    return res.status(401).json({ error: 'Admin authentication required' });
-  }
-  
   const { email, emails } = req.body;
   
   // Support both single email and array of emails
