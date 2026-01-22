@@ -28,9 +28,9 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Server version - UPDATE THIS ON EACH DEPLOY!
-const SERVER_VERSION = '2.6.0';
+const SERVER_VERSION = '2.7.0';
 const VERSION_DATE = '2026-01-22';
-const VERSION_NOTES = 'הוספת מערכת לוגים לדשבורד';
+const VERSION_NOTES = 'תיקון: התראות רק על משחקים שבמעקב (monitoredGames)';
 
 // ============================================
 // 📝 LOGGING SYSTEM
@@ -3718,8 +3718,11 @@ function parseTicketsFromHtml(html) {
       const gameName = nameMatch ? nameMatch[0].trim() : 'משחק בית"ר ירושלים';
       const gameUrl = linkMatch ? linkMatch[1] : null;
       
+      // Create stable ID based on game name (not timestamp!)
+      const stableId = gameUrl || `beitar-${gameName.replace(/[^א-תa-zA-Z0-9]/g, '-').toLowerCase()}`;
+      
       games.push({
-        id: gameUrl || `beitar-${Date.now()}-${games.length}`,
+        id: stableId,
         name: gameName.replace(/<[^>]+>/g, '').trim(),
         ticketUrl: gameUrl ? (gameUrl.startsWith('http') ? gameUrl : `https://www.leaan.co.il${gameUrl}`) : 'https://www.leaan.co.il/category/%D7%A1%D7%A4%D7%95%D7%A8%D7%98',
         available: !isSoldOut,
@@ -3845,8 +3848,9 @@ async function checkTicketsAndNotify() {
         log.info('tickets', 'אין משחקים חדשים (כבר נשלחו התראות)');
       }
       
-      // Update known games
+      // Update known games - save full game objects for dashboard
       data.lastKnownGames = availableGames.map(g => g.id);
+      data.availableGamesCache = availableGames; // Save full game data
       saveData();
     } else {
       console.log('😴 No tickets available for Beitar Jerusalem games');
@@ -3869,7 +3873,7 @@ async function notifyAllSubscribers(games) {
     return;
   }
   
-  log.info('email', `שולח התראות ל-${subscriberIds.length} מנויים...`, { count: subscriberIds.length });
+  log.info('email', `בודק ${subscriberIds.length} מנויים...`, { count: subscriberIds.length });
   
   let emailsSent = 0;
   let smsSent = 0;
@@ -3878,6 +3882,47 @@ async function notifyAllSubscribers(games) {
     const subscriber = subscribers[subscriberId];
     
     try {
+      // Filter games based on subscriber's monitoredGames
+      let gamesToNotify = games;
+      
+      if (subscriber.monitoredGames && subscriber.monitoredGames.length > 0) {
+        // Subscriber has specific games - filter only those
+        gamesToNotify = games.filter(game => {
+          return subscriber.monitoredGames.some(monitored => {
+            // Match by ID
+            if (game.id && monitored.id && game.id === monitored.id) return true;
+            
+            // Match by name similarity
+            if (game.name && monitored.name) {
+              const gameName = game.name.toLowerCase().replace(/[^א-תa-z0-9]/g, '');
+              const monitoredName = monitored.name.toLowerCase().replace(/[^א-תa-z0-9]/g, '');
+              if (gameName.includes(monitoredName) || monitoredName.includes(gameName)) return true;
+            }
+            
+            // Match by opponent
+            if (game.name && monitored.opponent) {
+              const gameName = game.name.toLowerCase();
+              const opponent = monitored.opponent.toLowerCase();
+              if (gameName.includes(opponent)) return true;
+            }
+            
+            return false;
+          });
+        });
+        
+        log.info('email', `${subscriberId}: ${gamesToNotify.length}/${games.length} משחקים מתאימים למעקב`, 
+          { subscriber: subscriberId, matched: gamesToNotify.length, total: games.length });
+      } else {
+        // No monitoredGames - subscriber gets ALL Beitar games
+        log.info('email', `${subscriberId}: מקבל כל משחקי בית"ר (אין רשימת מעקב)`, { subscriber: subscriberId });
+      }
+      
+      // Skip if no matching games
+      if (gamesToNotify.length === 0) {
+        log.info('email', `${subscriberId}: אין משחקים מתאימים - לא שולח התראה`, { subscriber: subscriberId });
+        continue;
+      }
+      
       // Build email HTML
       const emailHtml = `
         <!DOCTYPE html>
@@ -3888,7 +3933,7 @@ async function notifyAllSubscribers(games) {
             <h1 style="color: #ffd700; text-align: center;">🎟️ כרטיסים זמינים!</h1>
             <p style="text-align: center; color: #ccc;">נמצאו כרטיסים למשחקי בית"ר ירושלים!</p>
             
-            ${games.map(g => `
+            ${gamesToNotify.map(g => `
               <div style="background: #222; padding: 15px; border-radius: 10px; margin: 10px 0; border-right: 3px solid #ffd700;">
                 <div style="color: #fff; font-weight: bold;">${g.name}</div>
                 ${g.ticketPrice ? `<div style="color: #ffd700;">מחיר: ${g.ticketPrice}₪</div>` : ''}
@@ -3920,9 +3965,9 @@ async function notifyAllSubscribers(games) {
         const licenseCheck = isLicenseValid(subscriber.licenseKey);
         if (licenseCheck.valid && licenseCheck.canSendSms) {
           // Build engaging SMS with full link (max 201 chars for 1 SMS segment in Hebrew)
-          const opponent = games[0].name.replace(/בית"ר ירושלים[^-]*-\s*/i, '').replace(/\s*\([^)]*\)/g, '').trim();
-          const price = games[0].ticketPrice ? ` ${games[0].ticketPrice}₪` : '';
-          const url = games[0].ticketUrl || 'https://www.leaan.co.il';
+          const opponent = gamesToNotify[0].name.replace(/בית"ר ירושלים[^-]*-\s*/i, '').replace(/\s*\([^)]*\)/g, '').trim();
+          const price = gamesToNotify[0].ticketPrice ? ` ${gamesToNotify[0].ticketPrice}₪` : '';
+          const url = gamesToNotify[0].ticketUrl || 'https://www.leaan.co.il';
           const chant = getRandomChant();
           const smsText = `🔥 כרטיסים זמינים לבית"ר!\n⚽ VS ${opponent}${price}\n🎟️ היכנסו עכשיו: ${url}\n💛🖤 ${chant}`;
           const smsSuccess = await sendSMS(subscriber.phone, smsText);
