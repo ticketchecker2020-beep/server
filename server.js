@@ -28,9 +28,9 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Server version - UPDATE THIS ON EACH DEPLOY!
-const SERVER_VERSION = '2.5.1';
+const SERVER_VERSION = '2.5.2';
 const VERSION_DATE = '2026-01-22';
-const VERSION_NOTES = 'Improved hasTickets matching by date/opponent/name';
+const VERSION_NOTES = 'תיקון: עדכון hasTickets בכל בדיקה (לא רק במשחקים חדשים)';
 
 // Data file for fallback storage
 const DATA_FILE = path.join(__dirname, 'data.json');
@@ -3638,6 +3638,63 @@ function parseTicketsFromHtml(html) {
   return uniqueGames;
 }
 
+// Update hasTickets status for all subscribers' monitored games
+async function updateHasTicketsStatus(availableGames) {
+  const subscribers = data.subscribers || {};
+  let updatedCount = 0;
+  
+  console.log(`🎫 Updating hasTickets status for ${availableGames.length} available games...`);
+  
+  for (const [subscriberId, subscriber] of Object.entries(subscribers)) {
+    if (!subscriber.monitoredGames || subscriber.monitoredGames.length === 0) continue;
+    
+    for (const game of subscriber.monitoredGames) {
+      if (game.hasTickets) continue; // Already marked as available
+      
+      // Check if this game matches any available game
+      const isAvailable = availableGames.some(availableGame => {
+        // Match by ID
+        if (availableGame.id && game.id && availableGame.id === game.id) return true;
+        
+        // Match by event date (within same day)
+        if (availableGame.eventDate && game.eventDate) {
+          const availableDate = new Date(availableGame.eventDate).toDateString();
+          const gameDate = new Date(game.eventDate).toDateString();
+          if (availableDate === gameDate) return true;
+        }
+        
+        // Match by opponent name (partial match)
+        if (availableGame.name && game.opponent) {
+          const availableName = availableGame.name.toLowerCase();
+          const opponent = game.opponent.toLowerCase();
+          if (availableName.includes(opponent) || opponent.includes(availableName.split(' ').pop())) return true;
+        }
+        
+        // Match by game name similarity
+        if (availableGame.name && game.name) {
+          const availableName = availableGame.name.toLowerCase().replace(/[^א-תa-z0-9]/g, '');
+          const gameName = game.name.toLowerCase().replace(/[^א-תa-z0-9]/g, '');
+          if (availableName.includes(gameName) || gameName.includes(availableName)) return true;
+        }
+        
+        return false;
+      });
+      
+      if (isAvailable) {
+        game.hasTickets = true;
+        game.ticketsFoundAt = new Date().toISOString();
+        updatedCount++;
+        console.log(`  ✅ ${subscriberId}: ${game.name || game.opponent} -> hasTickets=true`);
+      }
+    }
+  }
+  
+  if (updatedCount > 0) {
+    await saveData();
+    console.log(`🎫 Updated ${updatedCount} games with hasTickets=true`);
+  }
+}
+
 // Check for new tickets and notify subscribers
 async function checkTicketsAndNotify() {
   console.log('🔍 [Server Monitor] Checking for Beitar Jerusalem tickets...');
@@ -3667,6 +3724,9 @@ async function checkTicketsAndNotify() {
     console.log(`📊 Found ${allGames.length} Beitar games total, ${availableGames.length} with tickets available`);
     
     if (availableGames.length > 0) {
+      // Update hasTickets for ALL subscribers' monitored games
+      await updateHasTicketsStatus(availableGames);
+      
       // Check for NEW games (not seen before)
       const lastKnownIds = new Set(data.lastKnownGames || []);
       const newGames = availableGames.filter(g => !lastKnownIds.has(g.id));
@@ -3706,51 +3766,6 @@ async function notifyAllSubscribers(games) {
   }
   
   console.log(`📧 Notifying ${subscriberIds.length} subscribers...`);
-  
-  // Update hasTickets status for all monitored games that match available games
-  // Match by: ID, event date, or opponent name
-  console.log(`🎫 Checking hasTickets for ${games.length} available games...`);
-  for (const subscriberId of subscriberIds) {
-    const subscriber = subscribers[subscriberId];
-    if (subscriber.monitoredGames) {
-      for (const game of subscriber.monitoredGames) {
-        // Check if this game matches any available game
-        const isAvailable = games.some(availableGame => {
-          // Match by ID
-          if (availableGame.id && game.id && availableGame.id === game.id) return true;
-          
-          // Match by event date (within same day)
-          if (availableGame.eventDate && game.eventDate) {
-            const availableDate = new Date(availableGame.eventDate).toDateString();
-            const gameDate = new Date(game.eventDate).toDateString();
-            if (availableDate === gameDate) return true;
-          }
-          
-          // Match by opponent name (partial match)
-          if (availableGame.name && game.opponent) {
-            const availableName = availableGame.name.toLowerCase();
-            const opponent = game.opponent.toLowerCase();
-            if (availableName.includes(opponent) || opponent.includes(availableName.split(' ').pop())) return true;
-          }
-          
-          // Match by game name similarity
-          if (availableGame.name && game.name) {
-            const availableName = availableGame.name.toLowerCase().replace(/[^א-תa-z0-9]/g, '');
-            const gameName = game.name.toLowerCase().replace(/[^א-תa-z0-9]/g, '');
-            if (availableName.includes(gameName) || gameName.includes(availableName)) return true;
-          }
-          
-          return false;
-        });
-        
-        if (isAvailable && !game.hasTickets) {
-          game.hasTickets = true;
-          game.ticketsFoundAt = new Date().toISOString();
-          console.log(`  🎫 Updated game ${game.name || game.opponent || game.id}: hasTickets=true`);
-        }
-      }
-    }
-  }
   
   let emailsSent = 0;
   let smsSent = 0;
