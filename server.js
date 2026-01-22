@@ -28,9 +28,50 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Server version - UPDATE THIS ON EACH DEPLOY!
-const SERVER_VERSION = '2.5.3';
+const SERVER_VERSION = '2.6.0';
 const VERSION_DATE = '2026-01-22';
-const VERSION_NOTES = 'תיקון קריטי: המרת &quot; ל-" לזיהוי משחקים מ-leaan.co.il';
+const VERSION_NOTES = 'הוספת מערכת לוגים לדשבורד';
+
+// ============================================
+// 📝 LOGGING SYSTEM
+// ============================================
+const MAX_LOGS = 500; // Keep last 500 logs in memory
+const serverLogs = [];
+
+function addLog(level, category, message, details = null) {
+  const logEntry = {
+    timestamp: new Date().toISOString(),
+    level, // 'info', 'warn', 'error', 'success'
+    category, // 'system', 'email', 'sms', 'tickets', 'license', 'subscriber', 'api'
+    message,
+    details
+  };
+  
+  serverLogs.unshift(logEntry); // Add to beginning (newest first)
+  
+  // Keep only last MAX_LOGS
+  if (serverLogs.length > MAX_LOGS) {
+    serverLogs.length = MAX_LOGS;
+  }
+  
+  // Also log to console with emoji
+  const emoji = {
+    info: 'ℹ️',
+    warn: '⚠️',
+    error: '❌',
+    success: '✅'
+  }[level] || '📝';
+  
+  console.log(`${emoji} [${category.toUpperCase()}] ${message}`, details ? JSON.stringify(details).substring(0, 200) : '');
+}
+
+// Helper functions for different log levels
+const log = {
+  info: (category, message, details) => addLog('info', category, message, details),
+  warn: (category, message, details) => addLog('warn', category, message, details),
+  error: (category, message, details) => addLog('error', category, message, details),
+  success: (category, message, details) => addLog('success', category, message, details)
+};
 
 // Data file for fallback storage
 const DATA_FILE = path.join(__dirname, 'data.json');
@@ -110,7 +151,7 @@ let data = {
 // Load data on startup
 (async () => {
   data = await loadData();
-  console.log(`📊 Loaded ${Object.keys(data.licenses).length} licenses, ${Object.keys(data.subscribers).length} subscribers`);
+  log.info('system', `שרת הופעל - נטענו ${Object.keys(data.licenses).length} רישיונות, ${Object.keys(data.subscribers).length} מנויים`);
 })();
 
 // Pricing configuration
@@ -3359,6 +3400,63 @@ async function sendWelcomeEmail(license) {
   }
 }
 
+// ============================================
+// 📝 LOGS API (Admin only)
+// ============================================
+
+// Get server logs
+app.get('/api/admin/logs', (req, res) => {
+  const adminPass = req.query.password || req.headers['x-admin-password'];
+  if (adminPass !== (process.env.ADMIN_PASSWORD || 'Beitar2024$ecure!')) {
+    return res.status(401).json({ error: 'Invalid admin password' });
+  }
+  
+  const { level, category, limit = 100, search } = req.query;
+  
+  let filteredLogs = [...serverLogs];
+  
+  // Filter by level
+  if (level && level !== 'all') {
+    filteredLogs = filteredLogs.filter(l => l.level === level);
+  }
+  
+  // Filter by category
+  if (category && category !== 'all') {
+    filteredLogs = filteredLogs.filter(l => l.category === category);
+  }
+  
+  // Search in message
+  if (search) {
+    const searchLower = search.toLowerCase();
+    filteredLogs = filteredLogs.filter(l => 
+      l.message.toLowerCase().includes(searchLower) ||
+      (l.details && JSON.stringify(l.details).toLowerCase().includes(searchLower))
+    );
+  }
+  
+  // Limit results
+  filteredLogs = filteredLogs.slice(0, parseInt(limit));
+  
+  res.json({
+    total: serverLogs.length,
+    filtered: filteredLogs.length,
+    logs: filteredLogs
+  });
+});
+
+// Clear logs (admin only)
+app.delete('/api/admin/logs', (req, res) => {
+  const adminPass = req.query.password || req.headers['x-admin-password'];
+  if (adminPass !== (process.env.ADMIN_PASSWORD || 'Beitar2024$ecure!')) {
+    return res.status(401).json({ error: 'Invalid admin password' });
+  }
+  
+  serverLogs.length = 0;
+  log.info('system', 'Logs cleared by admin');
+  
+  res.json({ success: true, message: 'הלוגים נמחקו' });
+});
+
 // Get all licenses (admin only)
 app.get('/api/admin/licenses', (req, res) => {
   const adminPass = req.headers['x-admin-password'];
@@ -3702,7 +3800,7 @@ async function updateHasTicketsStatus(availableGames) {
 
 // Check for new tickets and notify subscribers
 async function checkTicketsAndNotify() {
-  console.log('🔍 [Server Monitor] Checking for Beitar Jerusalem tickets...');
+  log.info('tickets', 'בודק כרטיסים לבית"ר ירושלים...');
   
   try {
     const response = await fetch(LEAAN_URL, {
@@ -3714,7 +3812,7 @@ async function checkTicketsAndNotify() {
     });
     
     if (!response.ok) {
-      console.error(`❌ Failed to fetch leaan.co.il: ${response.status}`);
+      log.error('tickets', `שגיאה בגישה לאתר leaan.co.il: ${response.status}`);
       return;
     }
     
@@ -3726,7 +3824,8 @@ async function checkTicketsAndNotify() {
     
     data.lastTicketCheck = new Date().toISOString();
     
-    console.log(`📊 Found ${allGames.length} Beitar games total, ${availableGames.length} with tickets available`);
+    log.info('tickets', `נמצאו ${allGames.length} משחקים, ${availableGames.length} עם כרטיסים זמינים`, 
+      { total: allGames.length, available: availableGames.length });
     
     if (availableGames.length > 0) {
       // Update hasTickets for ALL subscribers' monitored games
@@ -3737,13 +3836,13 @@ async function checkTicketsAndNotify() {
       const newGames = availableGames.filter(g => !lastKnownIds.has(g.id));
       
       if (newGames.length > 0) {
-        console.log(`🆕 ${newGames.length} NEW available games found!`);
-        newGames.forEach(g => console.log(`   - ${g.name}`));
+        log.success('tickets', `${newGames.length} משחקים חדשים עם כרטיסים!`, 
+          { games: newGames.map(g => g.name) });
         
         // Notify all subscribers
         await notifyAllSubscribers(newGames);
       } else {
-        console.log('😴 No NEW tickets (already notified about these games)');
+        log.info('tickets', 'אין משחקים חדשים (כבר נשלחו התראות)');
       }
       
       // Update known games
@@ -3770,7 +3869,7 @@ async function notifyAllSubscribers(games) {
     return;
   }
   
-  console.log(`📧 Notifying ${subscriberIds.length} subscribers...`);
+  log.info('email', `שולח התראות ל-${subscriberIds.length} מנויים...`, { count: subscriberIds.length });
   
   let emailsSent = 0;
   let smsSent = 0;
@@ -3812,7 +3911,7 @@ async function notifyAllSubscribers(games) {
         const success = await sendEmail(email, '🎟️ כרטיסים זמינים לבית"ר ירושלים!', emailHtml);
         if (success) {
           emailsSent++;
-          console.log(`  ✅ Email sent to ${email}`);
+          log.success('email', `מייל נשלח ל-${email}`);
         }
       }
       
@@ -3835,7 +3934,7 @@ async function notifyAllSubscribers(games) {
               data.licenses[subscriber.licenseKey].usage = data.licenses[subscriber.licenseKey].usage || { sms: 0 };
               data.licenses[subscriber.licenseKey].usage.sms++;
             }
-            console.log(`  ✅ SMS sent to ${subscriber.phone}`);
+            log.success('sms', `SMS נשלח ל-${subscriber.phone}`);
           }
         }
       }
@@ -3844,12 +3943,12 @@ async function notifyAllSubscribers(games) {
       data.subscribers[subscriberId].lastNotified = new Date().toISOString();
       
     } catch (error) {
-      console.error(`  ❌ Failed to notify ${subscriberId}:`, error.message);
+      log.error('subscriber', `שגיאה בשליחת התראה ל-${subscriberId}`, { error: error.message });
     }
   }
   
   await saveData();
-  console.log(`📊 Notification complete: ${emailsSent} emails, ${smsSent} SMS sent`);
+  log.success('email', `סיכום התראות: ${emailsSent} מיילים, ${smsSent} SMS`, { emails: emailsSent, sms: smsSent });
 }
 
 // Subscribe endpoint - register for email notifications
