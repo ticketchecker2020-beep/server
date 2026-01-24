@@ -355,7 +355,7 @@ setInterval(checkLicenseExpiry, 6 * 60 * 60 * 1000);
 function authenticateApiKey(req, res, next) {
   // Skip auth for public endpoints and admin (admin has its own password check)
   // Note: req.path here is relative to /api, so /api/test-email becomes /test-email
-  const publicPaths = ['/health', '/pricing', '/register', '/coupon/validate', '/license/validate', '/admin', '/create-pending-order', '/webhook', '/add-game', '/remove-game', '/games', '/test-email', '/test-sms', '/activate-order'];
+  const publicPaths = ['/health', '/pricing', '/register', '/coupon/validate', '/coupon/activate', '/license/validate', '/license/by-email', '/admin', '/create-pending-order', '/webhook', '/add-game', '/remove-game', '/games', '/test-email', '/test-sms', '/activate-order'];
   if (publicPaths.some(p => req.path === p || req.path.startsWith(p))) {
     return next();
   }
@@ -1066,7 +1066,9 @@ app.post('/api/update-game-status', async (req, res) => {
 
 // Send notification (called by extension)
 app.post('/api/notify', async (req, res) => {
-  const { email, phone, games, licenseKey } = req.body;
+  const { email, phone, games } = req.body;
+  // Support licenseKey from both body and header
+  const licenseKey = req.body.licenseKey || req.headers['x-license-key'];
 
   if (!games || games.length === 0) {
     return res.status(400).json({ error: 'No games to notify about' });
@@ -1076,8 +1078,18 @@ app.post('/api/notify', async (req, res) => {
   let license = null;
   let canSendSms = false;
   
+  console.log('📧 /api/notify called:', { email: email ? 'yes' : 'no', phone: phone ? 'yes' : 'no', licenseKey: licenseKey ? 'yes' : 'no', gamesCount: games.length });
+  
   if (licenseKey) {
     const validation = isLicenseValid(licenseKey);
+    console.log('🔑 License validation:', { 
+      valid: validation.valid, 
+      canSendSms: validation.canSendSms, 
+      plan: validation.license?.plan,
+      smsLeft: validation.smsLeft,
+      smsUsed: validation.license?.usage?.sms,
+      smsLimit: validation.license?.smsLimit
+    });
     
     // Even if SMS expired, email still works
     if (!validation.valid && !validation.emailStillWorks) {
@@ -1089,6 +1101,8 @@ app.post('/api/notify', async (req, res) => {
     
     license = validation.license || data.licenses[licenseKey];
     canSendSms = validation.canSendSms || false;
+  } else {
+    console.log('⚠️ No licenseKey provided in /api/notify request');
   }
 
   const results = {
@@ -1171,6 +1185,9 @@ app.post('/api/notify', async (req, res) => {
     // User has phone but no SMS plan
     results.smsSkipped = true;
     results.smsReason = license?.plan === 'free' ? 'תוכנית חינם - אימייל בלבד' : 'מכסת SMS נגמרה';
+    console.log('⏭️ SMS skipped:', { reason: results.smsReason, plan: license?.plan, smsLimit: license?.smsLimit, smsUsed: license?.usage?.sms });
+  } else if (!phone) {
+    console.log('⏭️ SMS skipped: No phone number provided');
   }
 
   // Calculate SMS info for response
@@ -3130,6 +3147,160 @@ app.get('/api/pricing', (req, res) => {
     },
     coupon: couponInfo
   });
+});
+
+// Activate coupon - creates a license automatically (public endpoint)
+// This allows users to enter a coupon code and get a license without manual steps
+app.post('/api/coupon/activate', async (req, res) => {
+  const { code, email, phone, plan = 'yearly' } = req.body;
+  
+  if (!code) {
+    return res.status(400).json({ success: false, reason: 'לא הוזן קוד קופון' });
+  }
+  if (!email) {
+    return res.status(400).json({ success: false, reason: 'לא הוזן אימייל' });
+  }
+  
+  const upperCode = code.toUpperCase();
+  const coupon = COUPONS[upperCode];
+  
+  if (!coupon) {
+    return res.status(404).json({ success: false, reason: 'קופון לא נמצא' });
+  }
+  
+  if (!coupon.active) {
+    return res.status(400).json({ success: false, reason: 'קופון לא פעיל' });
+  }
+  
+  // Check if this is a 100% discount coupon (free license)
+  if (coupon.discount !== 100 || coupon.type !== 'percent') {
+    return res.status(400).json({ 
+      success: false, 
+      reason: 'קופון זה מעניק הנחה בלבד, לא רישיון חינם. יש להשלים תשלום.',
+      isCoupon: true,
+      discount: coupon.discount,
+      type: coupon.type
+    });
+  }
+  
+  // Check if email already has a valid license
+  for (const [key, license] of Object.entries(data.licenses)) {
+    if (license.userEmail?.toLowerCase() === email.toLowerCase() && license.active) {
+      const expiry = new Date(license.expiresAt);
+      if (expiry > new Date()) {
+        // Already has valid license - return it
+        return res.json({
+          success: true,
+          licenseKey: key,
+          existing: true,
+          message: 'כבר יש לך רישיון פעיל!',
+          plan: license.plan,
+          expiresAt: license.expiresAt,
+          smsLimit: license.smsLimit,
+          smsRemaining: license.smsRemaining
+        });
+      }
+    }
+  }
+  
+  // Create new license
+  const planConfig = PRICING[plan] || PRICING.yearly;
+  const licenseKey = generateLicenseKey();
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + planConfig.days);
+  
+  data.licenses[licenseKey] = {
+    key: licenseKey,
+    userName: email.split('@')[0],
+    plan: plan,
+    userEmail: email,
+    userPhone: phone || null,
+    active: true,
+    createdAt: new Date().toISOString(),
+    expiresAt: expiresAt.toISOString(),
+    smsRemaining: planConfig.smsLimit,
+    smsLimit: planConfig.smsLimit,
+    couponUsed: upperCode,
+    freeFromCoupon: true,
+    usage: { emails: 0, sms: 0 }
+  };
+  
+  saveData();
+  log('license', `רישיון ${licenseKey} נוצר עם קופון ${upperCode} עבור ${email}`);
+  
+  // Send welcome email with license key
+  try {
+    const emailHtml = `
+      <!DOCTYPE html>
+      <html dir="rtl" lang="he">
+      <head><meta charset="UTF-8"></head>
+      <body style="font-family: Arial; background: #111; color: #fff; padding: 20px;">
+        <div style="max-width: 500px; margin: 0 auto; background: #1a1a1a; border-radius: 15px; padding: 30px; border: 2px solid #ffd700;">
+          <h1 style="color: #ffd700; text-align: center;">🎟️ ברוך הבא!</h1>
+          <p style="text-align: center; color: #ccc;">הרישיון שלך הופעל בהצלחה!</p>
+          
+          <div style="background: #222; padding: 20px; border-radius: 10px; margin: 20px 0;">
+            <p style="margin: 0; color: #888;">מפתח הרישיון שלך:</p>
+            <p style="font-size: 1.3em; color: #ffd700; font-family: monospace; margin: 10px 0; word-break: break-all;">
+              ${licenseKey}
+            </p>
+          </div>
+          
+          <div style="background: #222; padding: 15px; border-radius: 10px; margin: 10px 0;">
+            <p style="margin: 5px 0;">📅 תוקף: עד ${expiresAt.toLocaleDateString('he-IL')}</p>
+            <p style="margin: 5px 0;">📱 SMS נותרו: ${planConfig.smsLimit}</p>
+            <p style="margin: 5px 0;">📧 אימייל: ללא הגבלה</p>
+          </div>
+          
+          <p style="text-align: center; margin-top: 30px; color: #888;">💛🖤 בהצלחה!</p>
+        </div>
+      </body>
+      </html>
+    `;
+    await sendEmail(email, '🎟️ הרישיון שלך הופעל - בית"ר ירושלים', emailHtml);
+  } catch (e) {
+    console.error('Failed to send welcome email:', e);
+  }
+  
+  res.json({
+    success: true,
+    licenseKey: licenseKey,
+    existing: false,
+    message: 'רישיון נוצר בהצלחה!',
+    plan: plan,
+    expiresAt: expiresAt.toISOString(),
+    smsLimit: planConfig.smsLimit,
+    smsRemaining: planConfig.smsLimit
+  });
+});
+
+// Get license by email (for auto-detection in extension)
+app.get('/api/license/by-email', (req, res) => {
+  const email = req.query.email?.toLowerCase();
+  
+  if (!email) {
+    return res.status(400).json({ found: false, reason: 'לא הוזן אימייל' });
+  }
+  
+  // Find active license for this email
+  for (const [key, license] of Object.entries(data.licenses)) {
+    if (license.userEmail?.toLowerCase() === email && license.active) {
+      const expiry = new Date(license.expiresAt);
+      if (expiry > new Date()) {
+        return res.json({
+          found: true,
+          licenseKey: key,
+          plan: license.plan,
+          expiresAt: license.expiresAt,
+          smsLimit: license.smsLimit,
+          smsRemaining: license.smsRemaining,
+          smsUsed: license.usage?.sms || 0
+        });
+      }
+    }
+  }
+  
+  res.json({ found: false, reason: 'לא נמצא רישיון פעיל לאימייל זה' });
 });
 
 // Validate coupon code (public endpoint)
