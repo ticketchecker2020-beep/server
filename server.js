@@ -3226,7 +3226,7 @@ app.post('/api/coupon/activate', async (req, res) => {
   };
   
   saveData();
-  log('license', `רישיון ${licenseKey} נוצר עם קופון ${upperCode} עבור ${email}`);
+  log.success('license', `רישיון ${licenseKey} נוצר עם קופון ${upperCode} עבור ${email}`);
   
   // Send welcome email with license key
   try {
