@@ -139,14 +139,16 @@
         🎟️ קישור ישיר לרכישה
       </p>
       
-      <button class="btn btn-primary" id="finishWizardBtn">למסך הראשי ✓</button>
+      <p class="auto-redirect-notice" id="autoRedirectNotice">עובר למסך הראשי בעוד <span id="countdownSeconds">2</span> שניות...</p>
+      
+      <button class="btn btn-secondary btn-small" id="finishWizardBtn">דלג עכשיו →</button>
       
       <div class="donation-section">
         <p>נהנית מהשירות? אפשר לתמוך בפיתוח המערכת 💛</p>
         <button class="btn btn-donate" id="donateBtn">☕ קנה לי קפה</button>
       </div>
     </div>
-  </div>
+  </div> <!-- End of wizard-container -->
 
   <!-- ========== MAIN SCREEN ========== -->
   <div class="main-screen" id="mainScreen">
@@ -164,8 +166,19 @@
       <span class="status-text">🟢 פעיל ומנטר</span>
     </div>
     
+    <!-- Monitored Games Section - Right under status -->
+    <div class="games-section">
+      <h3>⚽ משחקים במעקב</h3>
+      <div class="games-list" id="monitoredGamesList">
+        <div class="games-empty">טוען משחקים...</div>
+      </div>
+      <div class="games-hint" id="gamesHint">
+        💡 להוספת משחקים - לחץ על הכפתור למטה והיכנס לאתר בית"ר
+      </div>
+    </div>
+    
     <!-- Go to Site Button -->
-    <div class="site-link-container">
+    <div class="site-link-container" id="siteButtonContainer">
       <button class="site-link-btn" id="goToSiteBtn">
         🎟️ לאתר הכרטיסים של בית"ר
       </button>
@@ -267,7 +280,8 @@
       
       <div id="modalExistingSection" class="hidden">
         <div class="input-group">
-          <input type="text" id="modalLicenseKey" placeholder="BEITAR-XXXX-XXXX-XXXX" dir="ltr">
+          <label style="font-size: 12px; color: #888; margin-bottom: 4px; display: block;">מפתח רישיון או קוד קופון:</label>
+          <input type="text" id="modalLicenseKey" placeholder="BEITAR-XXXX או קוד קופון" dir="ltr">
         </div>
         <div class="input-group">
           <input type="tel" id="modalPhone" placeholder="050-1234567" dir="ltr">

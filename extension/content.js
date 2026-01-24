@@ -87,23 +87,47 @@ class GameSelector {
       e.preventDefault();
       e.stopPropagation();
       
+      console.log('🔔 Monitor button clicked for game:', gameInfo);
+      
+      // Check if already monitored - TOGGLE behavior
+      const isCurrentlyMonitored = btn.classList.contains('monitoring');
+      
       btn.disabled = true;
       btn.innerHTML = '⏳';
       
       try {
-        await this.addGameToMonitor(gameInfo);
-        btn.innerHTML = '✅ במעקב';
-        btn.classList.add('monitoring');
-        this.showNotification('המשחק נוסף למעקב!', 'success');
+        // Check if extension context is valid BEFORE sending message
+        if (!chrome.runtime?.id) {
+          throw new Error('Extension context invalidated - please refresh the page');
+        }
+        
+        if (isCurrentlyMonitored) {
+          // REMOVE from monitoring
+          console.log('🔔 Removing game from monitoring...');
+          const response = await this.removeGameFromMonitor(gameInfo.id);
+          console.log('🔔 Remove response:', response);
+          btn.innerHTML = '🔔 עקוב';
+          btn.classList.remove('monitoring');
+          this.showNotification('המשחק הוסר מהמעקב', 'info');
+        } else {
+          // ADD to monitoring
+          console.log('🔔 Sending addGame message to background...');
+          const response = await this.addGameToMonitor(gameInfo);
+          console.log('🔔 Response from background:', response);
+          btn.innerHTML = '✅ במעקב';
+          btn.classList.add('monitoring');
+          this.showNotification('המשחק נוסף למעקב!', 'success');
+        }
+        btn.disabled = false;
       } catch (error) {
-        console.error('Error adding game:', error);
-        btn.innerHTML = '❌ שגיאה';
+        console.error('❌ Error:', error);
+        btn.innerHTML = isCurrentlyMonitored ? '✅ במעקב' : '🔔 עקוב';
         btn.disabled = false;
         // Check if it's a context invalidated error
         if (error.message && error.message.includes('refresh')) {
           this.showNotification('רענן את הדף ונסה שוב', 'error');
         } else {
-          this.showNotification('שגיאה בהוספת משחק', 'error');
+          this.showNotification('שגיאה - נסה שוב', 'error');
         }
       }
     });
@@ -197,6 +221,27 @@ class GameSelector {
       
       chrome.runtime.sendMessage(
         { action: 'addGame', game: gameInfo },
+        (response) => {
+          if (chrome.runtime.lastError) {
+            reject(chrome.runtime.lastError);
+          } else {
+            resolve(response);
+          }
+        }
+      );
+    });
+  }
+
+  async removeGameFromMonitor(gameId) {
+    return new Promise((resolve, reject) => {
+      // Check if extension context is still valid
+      if (!chrome.runtime || !chrome.runtime.sendMessage) {
+        reject(new Error('Extension context invalidated. Please refresh the page.'));
+        return;
+      }
+      
+      chrome.runtime.sendMessage(
+        { action: 'removeGame', gameId: gameId },
         (response) => {
           if (chrome.runtime.lastError) {
             reject(chrome.runtime.lastError);

@@ -31,7 +31,8 @@ class TicketMonitor {
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       switch (message.action) {
         case 'checkNow':
-          this.checkTickets().then(() => sendResponse({ success: true }));
+          // When manually checking, force send notifications even if already notified
+          this.checkTickets(true).then(() => sendResponse({ success: true }));
           return true; // async response
         
         case 'updateInterval':
@@ -67,7 +68,10 @@ class TicketMonitor {
   }
 
   async addMonitoredGame(game) {
+    console.log('🎮 addMonitoredGame called with:', game);
+    
     const { monitoredGames = [] } = await chrome.storage.local.get('monitoredGames');
+    console.log('🎮 Current monitored games:', monitoredGames.length);
     
     // Check if game already exists
     if (!monitoredGames.find(g => g.id === game.id)) {
@@ -81,10 +85,13 @@ class TicketMonitor {
       
       monitoredGames.push(newGame);
       await chrome.storage.local.set({ monitoredGames });
-      console.log('Game added to monitoring:', game.name);
+      console.log('✅ Game added to monitoring:', game.name);
+      console.log('✅ Total monitored games now:', monitoredGames.length);
       
       // Also sync to server
       await this.syncGameToServer(newGame, 'add');
+    } else {
+      console.log('⚠️ Game already exists in monitoring:', game.id);
     }
   }
   
@@ -92,17 +99,31 @@ class TicketMonitor {
     try {
       // Get subscriber ID (email)
       const { userEmails, userEmail } = await chrome.storage.local.get(['userEmails', 'userEmail']);
-      const subscriberId = userEmails?.[0] || userEmail;
+      let subscriberId = userEmails?.[0] || userEmail;
       
+      console.log('🔄 Server sync - subscriberId:', subscriberId);
+      
+      // If no subscriber ID, create a temporary one and prompt user
       if (!subscriberId) {
-        console.log('No subscriber ID found, skipping server sync');
-        return;
+        console.log('⚠️ No subscriber ID found - game saved locally only');
+        console.log('💡 User needs to open extension and enter email to sync to server');
+        // Show notification to user
+        chrome.notifications.create('need-setup', {
+          type: 'basic',
+          iconUrl: 'icons/icon128.png',
+          title: '⚙️ נדרשת הגדרה',
+          message: 'פתח את התוסף והכנס אימייל כדי לקבל התראות',
+          priority: 2
+        });
+        return { success: false, error: 'No subscriber ID - please open extension and enter email' };
       }
       
       const endpoint = action === 'add' ? '/api/add-game' : '/api/remove-game';
       const body = action === 'add' 
         ? { subscriberId, game }
         : { subscriberId, gameId: game.id };
+      
+      console.log(`🔄 Sending to ${endpoint}:`, JSON.stringify(body));
       
       const response = await fetch(`${DEFAULT_SERVER_URL}${endpoint}`, {
         method: 'POST',
@@ -111,9 +132,11 @@ class TicketMonitor {
       });
       
       const result = await response.json();
-      console.log(`Server sync (${action}):`, result);
+      console.log(`✅ Server sync (${action}) response:`, JSON.stringify(result));
+      return result;
     } catch (error) {
-      console.error('Failed to sync game to server:', error);
+      console.error('❌ Failed to sync game to server:', error.message);
+      return { success: false, error: error.message };
     }
   }
 
@@ -129,10 +152,9 @@ class TicketMonitor {
       await this.syncGameToServer(gameToRemove, 'remove');
     }
   }
-  }
 
-  async checkTickets() {
-    console.log('Checking tickets...');
+  async checkTickets(forceNotify = false) {
+    console.log('Checking tickets...', forceNotify ? '(FORCE NOTIFY)' : '');
     
     try {
       // Try multiple approaches to get match data
@@ -175,13 +197,18 @@ class TicketMonitor {
       console.log('Total matches found:', matches.length);
       
       // Get monitored games
-      const { monitoredGames = [] } = await chrome.storage.local.get('monitoredGames');
+      const { monitoredGames = [], userEmails, userEmail } = await chrome.storage.local.get(['monitoredGames', 'userEmails', 'userEmail']);
+      
+      console.log('📊 Storage state:');
+      console.log('  - Monitored games:', monitoredGames.length);
+      console.log('  - User emails:', userEmails || userEmail || 'NONE');
       
       if (monitoredGames.length === 0) {
         console.log('No games being monitored');
         return;
       }
-
+      
+      console.log('🎯 Monitored games:', monitoredGames.map(g => g.opponent || g.name).join(', '));
       // Check each monitored game
       const updatedGames = [];
       const availableGames = [];
@@ -197,6 +224,26 @@ class TicketMonitor {
           const homeTeam = (m.match_info?.host_team?.name || m.home_team || '').toLowerCase();
           const awayTeam = (m.match_info?.away_team?.name || m.away_team || '').toLowerCase();
           const allText = `${eventName} ${homeTeam} ${awayTeam}`;
+          
+          // Normalize text to handle different quote characters
+          const normalizedText = allText
+            .replace(/[״"''`]/g, '"')  // Normalize all quote types
+            .replace(/בית"ר/g, 'ביתר')
+            .replace(/בית\\"/g, 'ביתר');
+          
+          // IMPORTANT: Check if this is a Beitar Jerusalem game
+          // Must contain "ביתר" or "בית" AND "ירושלים" to be a Beitar Jerusalem game
+          const hasBeitarWord = normalizedText.includes('ביתר') || 
+                                normalizedText.includes('בית') ||
+                                allText.includes('ביתר') ||
+                                allText.includes('בית');
+          const hasJerusalem = normalizedText.includes('ירושלים') || allText.includes('ירושלים');
+          const isBeitarGame = hasBeitarWord && hasJerusalem;
+          
+          // If this is not a Beitar Jerusalem game, skip it
+          if (!isBeitarGame) {
+            return false;
+          }
           
           // Match by opponent name
           if (game.opponent) {
@@ -222,15 +269,6 @@ class TicketMonitor {
             // Direct check without normalization
             if (allText.includes(opponentLower)) return true;
             
-            // Special handling for Beitar - check for any variant
-            if (opponentLower.includes('ביתר') || opponentLower.includes('בית')) {
-              if (allText.includes('ביתר') || allText.includes('בית"ר') || allText.includes('בית״ר') || allText.includes('בית\\')) {
-                // Make sure this is a Beitar game, not just any game
-                // Also check that it's Beitar JERUSALEM specifically if needed
-                return true;
-              }
-            }
-            
             // Special handling for teams with similar names
             // Extract just the city/identifier part
             const opponentParts = normalizedOpponent.split(' ').filter(p => p.length > 2);
@@ -245,6 +283,14 @@ class TicketMonitor {
         });
 
         console.log(`Looking for: ${game.opponent}, Found match: ${matchingGame?.event_name || matchingGame?.name || 'NOT FOUND'}`);
+        if (!matchingGame) {
+          // Debug: show why no match - list first 3 Beitar games found
+          const beitarGames = matches.filter(m => {
+            const name = (m.event_name || m.name || '').toLowerCase();
+            return name.includes('ביתר') || name.includes('בית') || name.includes('ירושלים');
+          }).slice(0, 3);
+          console.log(`  → Available Beitar games: ${beitarGames.map(g => g.event_name || g.name).join(', ') || 'NONE'}`);
+        }
         if (matchingGame) {
           console.log(`  → Price: ${matchingGame.starting_price || matchingGame.price || 'N/A'}₪`);
           console.log(`  → URL: ${matchingGame.url || 'N/A'}`);
@@ -253,17 +299,31 @@ class TicketMonitor {
 
         const wasAvailable = game.hasTickets;
         const neverChecked = game.lastChecked === null;
+        console.log(`  → Previous state: wasAvailable=${wasAvailable}, neverChecked=${neverChecked}`);
         
         // Determine if tickets are available
-        const isNowAvailable = matchingGame && !matchingGame.is_soldout && !matchingGame.sold_out && !matchingGame.subscription;
-        const isSoldOut = matchingGame?.is_soldout || matchingGame?.sold_out || false;
+        // Check multiple sold out indicators (JSON fields and text-based)
+        const soldOutIndicators = [
+          matchingGame?.is_soldout,
+          matchingGame?.sold_out,
+          matchingGame?.soldOut,
+          (matchingGame?.event_name || '').includes('אזלו'),
+          (matchingGame?.status || '').includes('אזלו'),
+          (matchingGame?.availability || '').toLowerCase().includes('sold')
+        ];
+        const isSoldOut = soldOutIndicators.some(x => x === true);
+        const isNowAvailable = matchingGame && !isSoldOut && !matchingGame.subscription;
 
-        console.log(`Checking ${game.opponent}: found=${!!matchingGame}, available=${isNowAvailable}, wasAvailable=${wasAvailable}, neverChecked=${neverChecked}`);
+        console.log(`Checking ${game.opponent}: found=${!!matchingGame}, soldOut=${isSoldOut}, available=${isNowAvailable}, wasAvailable=${wasAvailable}`);
+        if (matchingGame) {
+          console.log(`  → Event: ${matchingGame.event_name || matchingGame.name}`);
+          console.log(`  → SoldOut indicators: is_soldout=${matchingGame.is_soldout}, sold_out=${matchingGame.sold_out}`);
+        }
 
         // Build the ticket URL - prefer the direct event link
         const ticketUrl = matchingGame?.url || 
           (matchingGame?.event_id ? `https://www.leaan.co.il/event/${matchingGame.event_id}` : null) ||
-          'https://www.leaan.co.il/category/%D7%A1%D7%A4%D7%95%D7%A8%D7%98/%D7%9B%D7%93%D7%95%D7%A8%D7%92%D7%9C/%D7%91%D7%99%D7%AA%22%D7%A8-%D7%99%D7%A8%D7%95%D7%A9%D7%9C%D7%99%D7%9D';
+          'https://www.leaan.co.il/category/%D7%A1%D7%A4%D7%95%D7%A8%D7%98/%D7%9B%D7%93%D7%95%D7%A8%D7%92%D7%9C/%D7%91%D7%99%D7%AA%D7%A8-%D7%99%D7%A8%D7%95%D7%A9%D7%9C%D7%99%D7%9D';
 
         const updatedGame = {
           ...game,
@@ -279,9 +339,13 @@ class TicketMonitor {
 
         updatedGames.push(updatedGame);
 
-        // Notify if tickets are available AND (just became available OR first time checking)
-        if (isNowAvailable && (!wasAvailable || neverChecked)) {
+        // Notify if tickets are available AND (just became available OR first time checking OR force)
+        console.log(`  → Should notify? available=${isNowAvailable}, wasAvailable=${wasAvailable}, neverChecked=${neverChecked}, forceNotify=${forceNotify}`);
+        if (isNowAvailable && (forceNotify || !wasAvailable || neverChecked)) {
+          console.log(`  → ✅ Adding to notification queue: ${game.opponent}`);
           availableGames.push(updatedGame);
+        } else if (isNowAvailable) {
+          console.log(`  → ⏭️ Skipping notification (already notified before)`);
         }
       }
 
@@ -450,6 +514,7 @@ class TicketMonitor {
       
       // Pattern 1: Parse embedded JSON event objects
       // Look for: "event_id":"68a4a082d99ad189ee2b2958"..."event_name":"בית\"ר ירושלים - הפועל חיפה"..."starting_price":95
+      // Also capture is_soldout if present
       const eventJsonPattern = /"event_id"\s*:\s*"([^"]+)"[^}]*?"event_name"\s*:\s*"([^"]+)"[^}]*?"starting_price"\s*:\s*(\d+)/gi;
       let match;
       
@@ -458,11 +523,19 @@ class TicketMonitor {
         const eventName = match[2].replace(/\\"/g, '"'); // Unescape quotes
         const price = parseInt(match[3]);
         
+        // Check nearby text for soldout status
+        const nearbyText = html.substring(Math.max(0, match.index - 200), match.index + 500);
+        const isSoldOut = nearbyText.includes('"is_soldout":true') || 
+                          nearbyText.includes('SOLD OUT') ||
+                          nearbyText.includes('אזלו הכרטיסים') ||
+                          nearbyText.includes('אזלו');
+        
         if (!matches.find(m => m.event_id === eventId)) {
           matches.push({
             event_id: eventId,
             event_name: eventName,
             starting_price: price,
+            is_soldout: isSoldOut,
             url: `https://www.leaan.co.il/event/${eventId}`
           });
         }
@@ -475,11 +548,19 @@ class TicketMonitor {
         const price = parseInt(match[2]);
         const eventName = match[3].replace(/\\"/g, '"');
         
+        // Check nearby text for soldout status
+        const nearbyText = html.substring(Math.max(0, match.index - 200), match.index + 500);
+        const isSoldOut = nearbyText.includes('"is_soldout":true') || 
+                          nearbyText.includes('SOLD OUT') ||
+                          nearbyText.includes('אזלו הכרטיסים') ||
+                          nearbyText.includes('אזלו');
+        
         if (!matches.find(m => m.event_id === eventId)) {
           matches.push({
             event_id: eventId,
             event_name: eventName,
             starting_price: price,
+            is_soldout: isSoldOut,
             url: `https://www.leaan.co.il/event/${eventId}`
           });
         }
@@ -546,6 +627,8 @@ class TicketMonitor {
   }
 
   async sendNotifications(availableGames) {
+    console.log(`📧 sendNotifications called with ${availableGames.length} games`);
+    
     const settings = await chrome.storage.local.get([
       'browserNotifications',
       'emailNotifications',
@@ -554,6 +637,15 @@ class TicketMonitor {
       'userEmail',
       'userPhone'
     ]);
+    
+    console.log('📧 Notification settings:', {
+      browserNotifications: settings.browserNotifications,
+      emailNotifications: settings.emailNotifications,
+      smsNotifications: settings.smsNotifications,
+      hasEmail: !!settings.userEmail,
+      hasPhone: !!settings.userPhone,
+      hasLicense: !!settings.licenseKey
+    });
 
     // Browser notifications
     if (settings.browserNotifications !== false) {
@@ -570,17 +662,20 @@ class TicketMonitor {
     }
 
     // Email notifications (free for everyone!)
+    console.log(`📧 Email check: emailNotifications=${settings.emailNotifications}, userEmail=${settings.userEmail}`);
     if (settings.emailNotifications && settings.userEmail) {
+      console.log('📧 Sending email notification...');
       try {
         const response = await fetch(`${DEFAULT_SERVER_URL}/api/notify`, {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
-            'x-license-key': settings.licenseKey || 'free-email'
+            'x-license-key': settings.licenseKey || 'free-email' // Use license if available, otherwise free email
           },
           body: JSON.stringify({
             email: settings.userEmail,
-            phone: null, // No SMS for free
+            phone: null, // No SMS in this call - SMS sent separately
+            licenseKey: settings.licenseKey || null, // Include license for tracking
             games: availableGames.map(g => ({
               name: g.name,
               date: g.eventDate,
@@ -591,6 +686,7 @@ class TicketMonitor {
         });
         
         const result = await response.json();
+        console.log('📧 Email response:', result);
         if (result.results?.email) {
           console.log('✅ Email notification sent');
         }
@@ -611,6 +707,7 @@ class TicketMonitor {
           body: JSON.stringify({
             email: null, // Already sent via email
             phone: settings.userPhone,
+            licenseKey: settings.licenseKey, // Include in body for server validation
             games: availableGames.map(g => ({
               name: g.name,
               date: g.eventDate,

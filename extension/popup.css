@@ -203,7 +203,7 @@ body {
   padding: 8px;
   margin: 10px 0;
   font-size: 12px;
-  color: #888;
+  color: #fff;
 }
 
 .btn-donate-small {
@@ -222,14 +222,14 @@ body {
 }
 
 .terms-link, .link-text {
-  color: #555;
+  color: #ccc;
   font-size: 10px;
   text-decoration: underline;
   cursor: pointer;
 }
 
 .terms-link:hover, .link-text:hover {
-  color: #888;
+  color: #ffd700;
 }
 
 .link-text {
@@ -238,7 +238,7 @@ body {
 }
 
 .support-link {
-  color: #555;
+  color: #ffd700;
   font-size: 10px;
   text-decoration: none;
 }
@@ -248,7 +248,7 @@ body {
 }
 
 .footer-sep {
-  color: #333;
+  color: #888;
   margin: 0 5px;
 }
 
@@ -516,6 +516,34 @@ body {
 .final-info {
   font-size: 12px;
   line-height: 1.8;
+}
+
+.auto-redirect-notice {
+  font-size: 11px;
+  color: #888;
+  margin: 15px 0 10px 0;
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.btn-small {
+  padding: 8px 16px;
+  font-size: 12px;
+}
+
+.btn-secondary {
+  background: transparent;
+  border: 1px solid #666;
+  color: #aaa;
+}
+
+.btn-secondary:hover {
+  border-color: #ffd700;
+  color: #ffd700;
 }
 
 /* Pin Extension Tip */
@@ -807,6 +835,139 @@ body {
   background: rgba(255, 107, 107, 0.2);
 }
 
+/* Games Section */
+.games-section {
+  background: #111;
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.games-section h3 {
+  color: #ffd700;
+  font-size: 13px;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #333;
+}
+
+.games-list {
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.games-empty {
+  color: #666;
+  text-align: center;
+  padding: 15px;
+  font-size: 12px;
+}
+
+.game-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  background: #1a1a1a;
+  border-radius: 8px;
+  margin-bottom: 6px;
+  border-right: 3px solid #666;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.game-item:hover {
+  background: #252525;
+  transform: translateX(-2px);
+}
+
+.game-item.has-tickets {
+  border-right-color: #4ade80;
+  background: rgba(74, 222, 128, 0.1);
+}
+
+.game-item.has-tickets:hover {
+  background: rgba(74, 222, 128, 0.2);
+}
+
+.game-status {
+  font-size: 18px;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.game-status.status-waiting {
+  background: rgba(255, 215, 0, 0.2);
+}
+
+.game-status.status-available {
+  background: rgba(74, 222, 128, 0.3);
+  animation: pulse-green 1.5s infinite;
+}
+
+@keyframes pulse-green {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.1); opacity: 0.8; }
+}
+
+.game-info {
+  flex: 1;
+}
+
+.game-name {
+  font-size: 12px;
+  color: #fff;
+  margin-bottom: 2px;
+}
+
+.game-date {
+  font-size: 10px;
+  color: #888;
+}
+
+.game-status-text {
+  font-size: 10px;
+  margin-top: 2px;
+  font-weight: bold;
+}
+
+.game-status-text.status-waiting {
+  color: #ffd700;
+}
+
+.game-status-text.status-available {
+  color: #4ade80;
+}
+
+.game-remove {
+  background: transparent;
+  border: none;
+  color: #ff6b6b;
+  cursor: pointer;
+  padding: 4px 8px;
+  font-size: 14px;
+  border-radius: 4px;
+}
+
+.game-remove:hover {
+  background: rgba(255, 107, 107, 0.2);
+}
+
+.games-hint {
+  color: #666;
+  font-size: 10px;
+  text-align: center;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #222;
+}
+
 /* Check Info */
 .check-info {
   display: flex;
@@ -818,7 +979,7 @@ body {
   border-radius: 8px;
   margin: 12px 0;
   font-size: 12px;
-  color: #aaa;
+  color: #ffd700;
 }
 
 .check-info-icon {
@@ -829,7 +990,7 @@ body {
 .main-footer {
   text-align: center;
   font-size: 11px;
-  color: #666;
+  color: #ccc;
   padding-top: 10px;
 }
 
