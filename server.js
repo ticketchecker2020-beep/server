@@ -355,7 +355,7 @@ setInterval(checkLicenseExpiry, 6 * 60 * 60 * 1000);
 function authenticateApiKey(req, res, next) {
   // Skip auth for public endpoints and admin (admin has its own password check)
   // Note: req.path here is relative to /api, so /api/test-email becomes /test-email
-  const publicPaths = ['/health', '/pricing', '/register', '/coupon/validate', '/coupon/activate', '/license/validate', '/license/by-email', '/admin', '/create-pending-order', '/webhook', '/add-game', '/remove-game', '/games', '/test-email', '/test-sms', '/activate-order'];
+  const publicPaths = ['/health', '/pricing', '/register', '/coupon/validate', '/coupon/activate', '/license/validate', '/license/by-email', '/admin', '/create-pending-order', '/webhook', '/add-game', '/remove-game', '/games', '/test-email', '/test-sms', '/activate-order', '/notify'];
   if (publicPaths.some(p => req.path === p || req.path.startsWith(p))) {
     return next();
   }
