@@ -28,9 +28,9 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Server version - UPDATE THIS ON EACH DEPLOY!
-const SERVER_VERSION = '2.8.3';
-const VERSION_DATE = '2026-01-22';
-const VERSION_NOTES = 'תיקון: זיהוי קוד קופון vs מפתח רישיון';
+const SERVER_VERSION = '2.8.4';
+const VERSION_DATE = '2026-01-25';
+const VERSION_NOTES = 'תיקון: SMS עובד גם כשב-storage שמור קוד קופון במקום license';
 
 // ============================================
 // 📝 LOGGING SYSTEM
@@ -1077,18 +1077,38 @@ app.post('/api/notify', async (req, res) => {
   // Validate license if provided
   let license = null;
   let canSendSms = false;
+  let actualLicenseKey = licenseKey;
   
   console.log('📧 /api/notify called:', { email: email ? 'yes' : 'no', phone: phone ? 'yes' : 'no', licenseKey: licenseKey ? 'yes' : 'no', gamesCount: games.length });
   
   if (licenseKey) {
-    const validation = isLicenseValid(licenseKey);
+    let validation = isLicenseValid(licenseKey);
+    
+    // If licenseKey is actually a coupon code, try to find real license by email
+    if (!validation.valid && COUPONS[licenseKey] && email) {
+      console.log('🔄 licenseKey is a coupon code, searching for real license by email:', email);
+      const realLicenseKey = Object.keys(data.licenses).find(key => {
+        const lic = data.licenses[key];
+        return lic.userEmail === email && lic.active;
+      });
+      
+      if (realLicenseKey) {
+        console.log('✅ Found real license:', realLicenseKey);
+        actualLicenseKey = realLicenseKey;
+        validation = isLicenseValid(realLicenseKey);
+      } else {
+        console.log('⚠️ No license found for email, coupon user without license');
+      }
+    }
+    
     console.log('🔑 License validation:', { 
       valid: validation.valid, 
       canSendSms: validation.canSendSms, 
       plan: validation.license?.plan,
       smsLeft: validation.smsLeft,
       smsUsed: validation.license?.usage?.sms,
-      smsLimit: validation.license?.smsLimit
+      smsLimit: validation.license?.smsLimit,
+      actualLicenseKey: actualLicenseKey
     });
     
     // Even if SMS expired, email still works
@@ -1099,7 +1119,7 @@ app.post('/api/notify', async (req, res) => {
       });
     }
     
-    license = validation.license || data.licenses[licenseKey];
+    license = validation.license || data.licenses[actualLicenseKey];
     canSendSms = validation.canSendSms || false;
   } else {
     console.log('⚠️ No licenseKey provided in /api/notify request');
@@ -1178,7 +1198,7 @@ app.post('/api/notify', async (req, res) => {
     if (results.sms && license) {
       license.usage.sms++;
       license.lastUsed = new Date().toISOString();
-      data.licenses[licenseKey] = license;
+      data.licenses[actualLicenseKey] = license;
       saveData();
     }
   } else if (phone && !canSendSms) {
