@@ -1259,12 +1259,16 @@ app.post('/api/notify', async (req, res) => {
   if (licenseKey) {
     let validation = isLicenseValid(licenseKey);
     
-    // If licenseKey is actually a coupon code, try to find real license by email
-    if (!validation.valid && COUPONS[licenseKey] && email) {
-      console.log('🔄 licenseKey is a coupon code, searching for real license by email:', email);
+    // If licenseKey is actually a coupon code, try to find real license by email or phone
+    if (!validation.valid && COUPONS[licenseKey] && (email || phone)) {
+      console.log('🔄 licenseKey is a coupon code, searching for real license by email/phone:', email || phone);
       const realLicenseKey = Object.keys(data.licenses).find(key => {
         const lic = data.licenses[key];
-        return lic.userEmail === email && lic.active;
+        if (!lic.active) return false;
+        // Match by email or phone
+        if (email && lic.userEmail === email) return true;
+        if (phone && lic.userPhone === phone) return true;
+        return false;
       });
       
       if (realLicenseKey) {
@@ -1272,7 +1276,7 @@ app.post('/api/notify', async (req, res) => {
         actualLicenseKey = realLicenseKey;
         validation = isLicenseValid(realLicenseKey);
       } else {
-        console.log('⚠️ No license found for email, coupon user without license');
+        console.log('⚠️ No license found for email/phone, coupon user without license');
       }
     }
     
