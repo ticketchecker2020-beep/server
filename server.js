@@ -1034,37 +1034,97 @@ app.get('/api/games/proxy', async (req, res) => {
   try {
     log.info('proxy', 'Website requesting games proxy...');
     
-    const response = await fetchWithRetry(LEAAN_URL, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'he-IL,he;q=0.9,en;q=0.8'
-      }
-    }, 3);
+    let allGames = [];
     
-    if (!response.ok) {
-      log.error('proxy', `Failed to fetch leaan.co.il: ${response.status}`);
+    // Try official Beitar website first (more complete games list)
+    try {
+      const officialResponse = await fetchWithRetry(BEITAR_OFFICIAL_URL, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'he-IL,he;q=0.9,en;q=0.8'
+        }
+      }, 2);
+      
+      if (officialResponse.ok) {
+        const officialHtml = await officialResponse.text();
+        const officialGames = parseGamesFromBeitarOfficial(officialHtml);
+        allGames = [...officialGames];
+        log.info('proxy', `Got ${officialGames.length} games from official site`);
+      }
+    } catch (officialErr) {
+      log.warn('proxy', `Official site failed: ${officialErr.message}`);
+    }
+    
+    // Also try Leaan for ticket availability info
+    try {
+      const leaanResponse = await fetchWithRetry(LEAAN_URL, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'he-IL,he;q=0.9,en;q=0.8'
+        }
+      }, 2);
+      
+      if (leaanResponse.ok) {
+        const leaanHtml = await leaanResponse.text();
+        const leaanGames = parseTicketsFromHtml(leaanHtml);
+        
+        // Merge Leaan games (for ticket info) with official games
+        for (const lg of leaanGames) {
+          // Try to find matching game from official list
+          const existingIdx = allGames.findIndex(g => 
+            g.eventDate === lg.eventDate || 
+            (g.name && lg.name && g.name.includes(lg.name.split('-')[0]?.trim()))
+          );
+          
+          if (existingIdx >= 0) {
+            // Update with Leaan ticket info
+            allGames[existingIdx].ticketUrl = lg.ticketUrl || allGames[existingIdx].ticketUrl;
+            allGames[existingIdx].soldOut = lg.soldOut;
+            allGames[existingIdx].available = lg.available;
+            allGames[existingIdx].startingPrice = lg.startingPrice;
+          } else if (!lg.name?.includes('מנוי') && !lg.name?.includes('הגרלה')) {
+            // Add as new game (skip subscriptions and raffles)
+            allGames.push(lg);
+          }
+        }
+        
+        log.info('proxy', `Merged ${leaanGames.length} Leaan games`);
+      }
+    } catch (leaanErr) {
+      log.warn('proxy', `Leaan failed: ${leaanErr.message}`);
+    }
+    
+    // If both sources failed, return error
+    if (allGames.length === 0) {
+      log.error('proxy', 'No games from any source');
       return res.status(502).json({ error: 'Failed to fetch games', events: [] });
     }
     
-    const html = await response.text();
-    const games = parseTicketsFromHtml(html);
-    
     // Format for website consumption
-    const formattedGames = games.map(game => ({
+    const formattedGames = allGames.map(game => ({
       id: game.id,
       name: game.name,
       opponent: extractOpponentFromName(game.name),
       date: game.eventDate || null,
       time: game.eventTime || null,
       venue: game.venue || 'אצטדיון טדי',
-      hasTickets: game.available,
-      soldOut: game.soldOut,
+      hasTickets: game.available !== false,
+      soldOut: game.soldOut || false,
       ticketUrl: game.ticketUrl,
       competition: 'ליגה',
       startingPrice: game.startingPrice,
-      image: game.image
+      image: game.image,
+      isHomeGame: game.isHomeGame
     }));
+    
+    // Sort by date
+    formattedGames.sort((a, b) => {
+      if (!a.date) return 1;
+      if (!b.date) return -1;
+      return a.date.localeCompare(b.date);
+    });
     
     log.info('proxy', `Returning ${formattedGames.length} games to website`);
     res.json({ events: formattedGames, success: true });
@@ -4070,7 +4130,108 @@ setup019SMS();
 
 // Use Beitar Jerusalem specific page instead of general sports page
 const LEAAN_URL = 'https://www.leaan.co.il/category/%D7%A1%D7%A4%D7%95%D7%A8%D7%98/%D7%9B%D7%93%D7%95%D7%A8%D7%92%D7%9C/%D7%91%D7%99%D7%AA%D7%A8-%D7%99%D7%A8%D7%95%D7%A9%D7%9C%D7%99%D7%9D';
+// Official Beitar FC website - better source for games list
+const BEITAR_OFFICIAL_URL = 'https://www.beitarfc.co.il/%D7%9E%D7%A9%D7%97%D7%A7%D7%99%D7%9D/';
 const CHECK_INTERVAL = 5 * 60 * 1000; // Check every 5 minutes
+
+// Parse games from official Beitar FC website (beitarfc.co.il)
+function parseGamesFromBeitarOfficial(html) {
+  const games = [];
+  
+  try {
+    // Match each game_list_item div
+    const gameItemPattern = /<div class="game_list_item[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/div>\s*<\/div>(?=<div class="(?:game_list_item|col-12)|$)/gi;
+    
+    // Also get the "next match" which has different structure
+    const nextMatchPattern = /<div class="next_match[^"]*"[\s\S]*?<div class="teams_names[\s\S]*?<div class="home">\s*([^<]+)\s*<\/div>\s*<div class="away">\s*([^<]+)\s*<\/div>[\s\S]*?<div class="stadium">\s*([^<]+)\s*<\/div>\s*<div class="date">\s*([^<]+)\s*<\/div>/i;
+    
+    const nextMatch = html.match(nextMatchPattern);
+    if (nextMatch) {
+      const homeTeam = nextMatch[1].trim();
+      const awayTeam = nextMatch[2].trim();
+      const stadium = nextMatch[3].trim();
+      const dateStr = nextMatch[4].trim();
+      
+      const gameName = `${homeTeam} - ${awayTeam}`;
+      const eventDate = parseBeitarDate(dateStr);
+      const isHomeGame = homeTeam.includes('בית"ר') || homeTeam.includes('ביתר');
+      
+      games.push({
+        id: `beitar-official-${eventDate}-next`,
+        name: gameName,
+        eventDate,
+        eventTime: extractTimeFromDate(dateStr),
+        venue: stadium,
+        ticketUrl: 'https://www.leaan.co.il/category/%D7%A1%D7%A4%D7%95%D7%A8%D7%98/%D7%9B%D7%93%D7%95%D7%A8%D7%92%D7%9C/%D7%91%D7%99%D7%AA%D7%A8-%D7%99%D7%A8%D7%95%D7%A9%D7%9C%D7%99%D7%9D',
+        available: true,
+        soldOut: false,
+        isHomeGame
+      });
+    }
+    
+    // Parse all other games
+    const simplePattern = /<div class="teams_names[\s\S]*?<div class="home">\s*([^<]+)\s*<\/div>\s*<div class="away">\s*([^<]+)\s*<\/div>[\s\S]*?<div class="stadium">\s*([^<]+)\s*<\/div>\s*<div class="date">\s*([^<]+)\s*<\/div>/gi;
+    
+    let match;
+    while ((match = simplePattern.exec(html)) !== null) {
+      const homeTeam = match[1].trim();
+      const awayTeam = match[2].trim();
+      const stadium = match[3].trim();
+      const dateStr = match[4].trim();
+      
+      const gameName = `${homeTeam} - ${awayTeam}`;
+      const eventDate = parseBeitarDate(dateStr);
+      const isHomeGame = homeTeam.includes('בית"ר') || homeTeam.includes('ביתר');
+      
+      // Skip duplicates
+      if (games.some(g => g.name === gameName && g.eventDate === eventDate)) {
+        continue;
+      }
+      
+      games.push({
+        id: `beitar-official-${eventDate}-${games.length}`,
+        name: gameName,
+        eventDate,
+        eventTime: extractTimeFromDate(dateStr),
+        venue: stadium,
+        ticketUrl: 'https://www.leaan.co.il/category/%D7%A1%D7%A4%D7%95%D7%A8%D7%98/%D7%9B%D7%93%D7%95%D7%A8%D7%92%D7%9C/%D7%91%D7%99%D7%AA%D7%A8-%D7%99%D7%A8%D7%95%D7%A9%D7%9C%D7%99%D7%9D',
+        available: true,
+        soldOut: false,
+        isHomeGame
+      });
+    }
+    
+    console.log(`✅ Parsed ${games.length} games from Beitar official website`);
+    
+  } catch (error) {
+    console.error('Error parsing Beitar official website:', error.message);
+  }
+  
+  return games;
+}
+
+// Helper: Parse date from "01/02/26 -> 01:59" format
+function parseBeitarDate(dateStr) {
+  try {
+    const match = dateStr.match(/(\d{2})\/(\d{2})\/(\d{2})/);
+    if (match) {
+      const day = match[1];
+      const month = match[2];
+      const year = `20${match[3]}`;
+      return `${year}-${month}-${day}`;
+    }
+  } catch (e) {}
+  return null;
+}
+
+// Helper: Extract time from date string
+function extractTimeFromDate(dateStr) {
+  try {
+    const match = dateStr.match(/(\d{2}:\d{2})/);
+    return match ? match[1] : null;
+  } catch (e) {}
+  return null;
+}
 
 // Parse tickets from leaan.co.il HTML - extract from __NEXT_DATA__ JSON
 function parseTicketsFromHtml(html) {
@@ -4082,7 +4243,9 @@ function parseTicketsFromHtml(html) {
     
     if (nextDataMatch) {
       const jsonData = JSON.parse(nextDataMatch[1]);
-      const pageData = jsonData?.props?.pageProps?.pageData;
+      // Correct path: initialState.pageData (not directly under pageProps)
+      const pageData = jsonData?.props?.pageProps?.initialState?.pageData 
+                    || jsonData?.props?.pageProps?.pageData;
       
       if (pageData) {
         // Get upcoming matches from pageData - note: it's "upcoming_matches.matches" (snake_case)
