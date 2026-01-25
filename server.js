@@ -1057,11 +1057,13 @@ app.get('/api/games/proxy', async (req, res) => {
       opponent: extractOpponentFromName(game.name),
       date: game.eventDate || null,
       time: game.eventTime || null,
-      venue: 'טדי',
+      venue: game.venue || 'אצטדיון טדי',
       hasTickets: game.available,
       soldOut: game.soldOut,
       ticketUrl: game.ticketUrl,
-      competition: 'ליגה'
+      competition: 'ליגה',
+      startingPrice: game.startingPrice,
+      image: game.image
     }));
     
     log.info('proxy', `Returning ${formattedGames.length} games to website`);
@@ -4066,56 +4068,145 @@ setup019SMS();
 // 🔄 SERVER-SIDE TICKET MONITORING (24/7)
 // ============================================
 
-const LEAAN_URL = 'https://www.leaan.co.il/category/%D7%A1%D7%A4%D7%95%D7%A8%D7%98';
+// Use Beitar Jerusalem specific page instead of general sports page
+const LEAAN_URL = 'https://www.leaan.co.il/category/%D7%A1%D7%A4%D7%95%D7%A8%D7%98/%D7%9B%D7%93%D7%95%D7%A8%D7%92%D7%9C/%D7%91%D7%99%D7%AA%D7%A8-%D7%99%D7%A8%D7%95%D7%A9%D7%9C%D7%99%D7%9D';
 const CHECK_INTERVAL = 5 * 60 * 1000; // Check every 5 minutes
 
-// Parse tickets from leaan.co.il HTML - looking for Beitar Jerusalem games
+// Parse tickets from leaan.co.il HTML - extract from __NEXT_DATA__ JSON
 function parseTicketsFromHtml(html) {
   const games = [];
   
-  // CRITICAL FIX: Convert HTML entities to actual characters
-  // leaan.co.il uses &quot; in HTML elements (4 occurrences) and ״ (U+05F4 Hebrew Gershayim) in JSON data (9 occurrences)
-  // Without this conversion, the regex won't find games like "בית"ר ירושלים - הפועל חיפה"
+  try {
+    // Extract __NEXT_DATA__ JSON from the HTML (Next.js pages embed data this way)
+    const nextDataMatch = html.match(/<script id="__NEXT_DATA__"[^>]*>([^<]+)<\/script>/);
+    
+    if (nextDataMatch) {
+      const jsonData = JSON.parse(nextDataMatch[1]);
+      const pageData = jsonData?.props?.pageProps?.pageData;
+      
+      if (pageData) {
+        // Get upcoming matches from pageData
+        const matches = pageData.upcomingMatches || pageData.events || [];
+        
+        for (const match of matches) {
+          // Extract game info from the structured JSON data
+          const eventId = match.event_id || match.id || String(match.event_start);
+          const isSoldOut = match.is_soldout === true;
+          
+          // Build game name from match info
+          let gameName = match.name || match.event_name || '';
+          
+          // If matchEventDetails exists, build a better name
+          if (match.matchEventDetails) {
+            const hostTeam = match.matchEventDetails.hostTeam?.name || '';
+            const awayTeam = match.matchEventDetails.awayTeam?.name || '';
+            if (hostTeam && awayTeam) {
+              gameName = `${hostTeam} - ${awayTeam}`;
+            }
+          }
+          
+          // Extract date/time from event_start (Unix timestamp)
+          let eventDate = null;
+          let eventTime = null;
+          if (match.event_start) {
+            const date = new Date(match.event_start * 1000);
+            eventDate = date.toISOString().split('T')[0];
+            eventTime = date.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+          }
+          
+          // Build ticket URL
+          const ticketUrl = match.event_id 
+            ? `https://www.leaan.co.il/event/${match.event_id}`
+            : 'https://www.leaan.co.il/category/%D7%A1%D7%A4%D7%95%D7%A8%D7%98/%D7%9B%D7%93%D7%95%D7%A8%D7%92%D7%9C/%D7%91%D7%99%D7%AA%D7%A8-%D7%99%D7%A8%D7%95%D7%A9%D7%9C%D7%99%D7%9D';
+          
+          // Extract location
+          const venue = match.location?.name || 'אצטדיון טדי';
+          
+          games.push({
+            id: eventId,
+            name: gameName,
+            eventDate,
+            eventTime,
+            venue,
+            ticketUrl,
+            available: !isSoldOut,
+            soldOut: isSoldOut,
+            startingPrice: match.starting_price || null,
+            image: match.vivenu_image || match.images?.desktop?.vivenu_image || null
+          });
+        }
+      }
+    }
+    
+    // Fallback: If no __NEXT_DATA__ found, try regex parsing
+    if (games.length === 0) {
+      console.log('⚠️ No __NEXT_DATA__ found, falling back to regex parsing');
+      return parseTicketsFromHtmlFallback(html);
+    }
+    
+  } catch (error) {
+    console.error('Error parsing __NEXT_DATA__:', error.message);
+    return parseTicketsFromHtmlFallback(html);
+  }
+  
+  return games;
+}
+
+// Fallback regex-based parsing (for when JSON parsing fails)
+function parseTicketsFromHtmlFallback(html) {
+  const games = [];
+  
+  // Convert HTML entities
   html = html.replace(/&quot;/g, '"');
   
-  // Look for Beitar Jerusalem games specifically
-  // The HTML shows games like "בית"ר ירושלים - הפועל חיפה"
-  const beitarPattern = /בית["\u0022\u05F4]ר\s*ירושלים/gi;
+  // Look for game cards with aria-label containing game info
+  const gameCardPattern = /aria-label="([^"]*(?:בית["״]ר\s*ירושלים|Beitar)[^"]*)"/gi;
+  let match;
   
-  // Find all game sections
-  const gameSections = html.split(/####|<\/article>|<\/div>\s*<div[^>]*class="[^"]*game/i);
-  
-  for (const section of gameSections) {
-    // Check if this section mentions Beitar Jerusalem
-    if (beitarPattern.test(section)) {
-      // Reset the regex
-      beitarPattern.lastIndex = 0;
-      
-      // Check if NOT sold out
-      const isSoldOut = /SOLD\s*OUT|אזל|נמכר/i.test(section);
-      
-      // Extract game name
-      const nameMatch = section.match(/בית["\u0022\u05F4]ר\s*ירושלים\s*[-–]\s*([^\n<]+)/i) ||
-                        section.match(/([^\n<]+)\s*[-–]\s*בית["\u0022\u05F4]ר\s*ירושלים/i);
-      
-      // Extract link
-      const linkMatch = section.match(/href="([^"]*beitar[^"]*|[^"]*%D7%91%D7%99%D7%AA%D7%A8[^"]*)"/i) ||
-                        section.match(/לפרטים נוספים[^<]*<.*?href="([^"]+)"/i);
-      
-      const gameName = nameMatch ? nameMatch[0].trim() : 'משחק בית"ר ירושלים';
-      const gameUrl = linkMatch ? linkMatch[1] : null;
-      
-      // Create stable ID based on game name (not timestamp!)
-      const stableId = gameUrl || `beitar-${gameName.replace(/[^א-תa-zA-Z0-9]/g, '-').toLowerCase()}`;
-      
-      games.push({
-        id: stableId,
-        name: gameName.replace(/<[^>]+>/g, '').trim(),
-        ticketUrl: gameUrl ? (gameUrl.startsWith('http') ? gameUrl : `https://www.leaan.co.il${gameUrl}`) : 'https://www.leaan.co.il/category/%D7%A1%D7%A4%D7%95%D7%A8%D7%98',
-        available: !isSoldOut,
-        soldOut: isSoldOut
-      });
+  while ((match = gameCardPattern.exec(html)) !== null) {
+    const ariaLabel = match[1];
+    const isSoldOut = /SOLD\s*OUT|אזל|נמכר/i.test(ariaLabel);
+    
+    // Extract teams from aria-label like "מ.ס אשדוד נגד בית"ר ירושלים"
+    const teamsMatch = ariaLabel.match(/([^,]+)\s*נגד\s*([^,]+)/i);
+    let gameName = ariaLabel;
+    
+    if (teamsMatch) {
+      gameName = `${teamsMatch[1].trim()} - ${teamsMatch[2].trim()}`;
     }
+    
+    // Extract date from aria-label
+    const dateMatch = ariaLabel.match(/(\d{1,2})\s+(ינואר|פברואר|מרץ|אפריל|מאי|יוני|יולי|אוגוסט|ספטמבר|אוקטובר|נובמבר|דצמבר)\s+(\d{4})/i);
+    let eventDate = null;
+    if (dateMatch) {
+      const monthMap = {
+        'ינואר': '01', 'פברואר': '02', 'מרץ': '03', 'אפריל': '04',
+        'מאי': '05', 'יוני': '06', 'יולי': '07', 'אוגוסט': '08',
+        'ספטמבר': '09', 'אוקטובר': '10', 'נובמבר': '11', 'דצמבר': '12'
+      };
+      const day = dateMatch[1].padStart(2, '0');
+      const month = monthMap[dateMatch[2]] || '01';
+      const year = dateMatch[3];
+      eventDate = `${year}-${month}-${day}`;
+    }
+    
+    // Extract time
+    const timeMatch = ariaLabel.match(/(\d{1,2}:\d{2})/);
+    const eventTime = timeMatch ? timeMatch[1] : null;
+    
+    // Create stable ID
+    const stableId = `beitar-${eventDate || Date.now()}-${gameName.replace(/[^א-תa-zA-Z0-9]/g, '-').substring(0, 30)}`;
+    
+    games.push({
+      id: stableId,
+      name: gameName.replace(/<[^>]+>/g, '').trim(),
+      eventDate,
+      eventTime,
+      venue: 'אצטדיון טדי',
+      ticketUrl: 'https://www.leaan.co.il/category/%D7%A1%D7%A4%D7%95%D7%A8%D7%98/%D7%9B%D7%93%D7%95%D7%A8%D7%92%D7%9C/%D7%91%D7%99%D7%AA%D7%A8-%D7%99%D7%A8%D7%95%D7%A9%D7%9C%D7%99%D7%9D',
+      available: !isSoldOut,
+      soldOut: isSoldOut
+    });
   }
   
   // Deduplicate by name
