@@ -4085,8 +4085,25 @@ function parseTicketsFromHtml(html) {
       const pageData = jsonData?.props?.pageProps?.pageData;
       
       if (pageData) {
-        // Get upcoming matches from pageData
-        const matches = pageData.upcomingMatches || pageData.events || [];
+        // Get upcoming matches from pageData - note: it's "upcoming_matches.matches" (snake_case)
+        let matches = [];
+        
+        // Try different possible locations for the matches array
+        if (pageData.upcoming_matches?.matches && Array.isArray(pageData.upcoming_matches.matches)) {
+          matches = pageData.upcoming_matches.matches;
+          console.log(`✅ Found ${matches.length} matches in upcoming_matches.matches`);
+        } else if (pageData.team?.upcoming_matches?.matches && Array.isArray(pageData.team.upcoming_matches.matches)) {
+          matches = pageData.team.upcoming_matches.matches;
+          console.log(`✅ Found ${matches.length} matches in team.upcoming_matches.matches`);
+        } else if (Array.isArray(pageData.upcomingMatches)) {
+          matches = pageData.upcomingMatches;
+          console.log(`✅ Found ${matches.length} matches in upcomingMatches`);
+        } else if (Array.isArray(pageData.events)) {
+          matches = pageData.events;
+          console.log(`✅ Found ${matches.length} matches in events`);
+        }
+        
+        console.log(`📊 Processing ${matches.length} matches from JSON`);
         
         for (const match of matches) {
           // Extract game info from the structured JSON data
@@ -4096,10 +4113,10 @@ function parseTicketsFromHtml(html) {
           // Build game name from match info
           let gameName = match.name || match.event_name || '';
           
-          // If matchEventDetails exists, build a better name
-          if (match.matchEventDetails) {
-            const hostTeam = match.matchEventDetails.hostTeam?.name || '';
-            const awayTeam = match.matchEventDetails.awayTeam?.name || '';
+          // If match_info exists (for sport events), build a better name
+          if (match.match_info) {
+            const hostTeam = match.match_info.host_team?.name || '';
+            const awayTeam = match.match_info.away_team?.name || '';
             if (hostTeam && awayTeam) {
               gameName = `${hostTeam} - ${awayTeam}`;
             }
@@ -4132,15 +4149,16 @@ function parseTicketsFromHtml(html) {
             available: !isSoldOut,
             soldOut: isSoldOut,
             startingPrice: match.starting_price || null,
-            image: match.vivenu_image || match.images?.desktop?.vivenu_image || null
+            image: match.vivenu_image || null,
+            restriction: match.restriction || null
           });
         }
       }
     }
     
-    // Fallback: If no __NEXT_DATA__ found, try regex parsing
+    // Fallback: If no games found, try regex parsing
     if (games.length === 0) {
-      console.log('⚠️ No __NEXT_DATA__ found, falling back to regex parsing');
+      console.log('⚠️ No matches found in __NEXT_DATA__, falling back to regex parsing');
       return parseTicketsFromHtmlFallback(html);
     }
     
