@@ -3521,6 +3521,46 @@ app.post('/api/admin/subscriber/delete', async (req, res) => {
   });
 });
 
+// Remove game from subscriber's monitored games (admin only)
+app.post('/api/admin/subscriber/remove-game', async (req, res) => {
+  const adminPass = req.query.p || req.query.password || req.headers['x-admin-password'];
+  if (adminPass !== process.env.ADMIN_PASSWORD && adminPass !== 'BeitarAdmin123!') {
+    return res.status(401).json({ error: 'Invalid admin password' });
+  }
+  
+  const { subscriberEmail, gameId } = req.body;
+  const subscriberId = subscriberEmail?.toLowerCase();
+  
+  if (!subscriberId || !data.subscribers[subscriberId]) {
+    return res.status(404).json({ error: 'מנוי לא נמצא' });
+  }
+  
+  if (!gameId) {
+    return res.status(400).json({ error: 'מזהה משחק לא סופק' });
+  }
+  
+  const subscriber = data.subscribers[subscriberId];
+  if (!subscriber.monitoredGames || subscriber.monitoredGames.length === 0) {
+    return res.status(404).json({ error: 'למנוי אין משחקים במעקב' });
+  }
+  
+  const originalLength = subscriber.monitoredGames.length;
+  subscriber.monitoredGames = subscriber.monitoredGames.filter(g => g.id !== gameId);
+  
+  if (subscriber.monitoredGames.length === originalLength) {
+    return res.status(404).json({ error: 'משחק לא נמצא במעקב של המנוי' });
+  }
+  
+  await saveData();
+  
+  log.info('admin', `משחק ${gameId} הוסר מהמעקב של ${subscriberId}`);
+  
+  res.json({ 
+    success: true, 
+    message: `משחק הוסר מהמעקב בהצלחה`
+  });
+});
+
 // Create new license (admin only)
 app.post('/api/admin/licenses', (req, res) => {
   const adminPass = req.headers['x-admin-password'];

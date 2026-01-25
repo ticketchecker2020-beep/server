@@ -381,6 +381,7 @@
               <th>מנוי</th>
               <th>נוסף בתאריך</th>
               <th>כרטיסים</th>
+              <th>פעולה</th>
             </tr>
           </thead>
           <tbody id="gamesBody"></tbody>
@@ -840,13 +841,18 @@
       tbody.innerHTML = games.map(game => {
         const addedDate = game.addedAt ? new Date(game.addedAt).toLocaleDateString('he-IL') : '-';
         const hasTickets = game.hasTickets ? '✅ זמין' : '⏳ ממתין';
+        const gameId = game.id || '';
+        const subscriberEmail = game.subscriber || '';
         
         return `
           <tr>
             <td>${escapeHtml(game.name || game.opponent || '-')}</td>
-            <td style="direction: ltr; text-align: right;">${game.subscriber}</td>
+            <td style="direction: ltr; text-align: right;">${subscriberEmail}</td>
             <td>${addedDate}</td>
             <td>${hasTickets}</td>
+            <td>
+              <button class="btn btn-sm btn-danger" onclick="removeGameFromSubscriber('${escapeHtml(subscriberEmail)}', '${escapeHtml(gameId)}')">🗑️ הסר</button>
+            </td>
           </tr>
         `;
       }).join('');
@@ -1059,6 +1065,31 @@
           loadData();
         } else {
           alert('❌ ' + (res.error || 'נכשל'));
+        }
+      } catch (e) {
+        alert('❌ שגיאה: ' + e.message);
+      }
+    }
+    
+    // Remove game from subscriber
+    async function removeGameFromSubscriber(subscriberEmail, gameId) {
+      if (!confirm(`להסיר את המשחק מהמעקב של ${subscriberEmail}?`)) return;
+      
+      try {
+        const res = await fetch(`${BASE_URL}/api/admin/subscriber/remove-game`, {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'X-Admin-Password': adminPassword 
+          },
+          body: JSON.stringify({ subscriberEmail, gameId })
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert('✅ המשחק הוסר מהמעקב!');
+          loadData();
+        } else {
+          alert('❌ ' + (data.error || 'נכשל'));
         }
       } catch (e) {
         alert('❌ שגיאה: ' + e.message);
