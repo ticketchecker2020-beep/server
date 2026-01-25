@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ביתר מוניטור - התראות על כרטיסים לביתר ירושלים</title>
+    <meta name="description" content="קבלו התראות מיידיות כשיש כרטיסים זמינים למשחקי ביתר ירושלים. עקבו אחרי המשחקים שאתם רוצים ונודיע לכם מיד!">
+    
+    <!-- Favicon -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚽</text></svg>">
+    
+    <!-- Styles -->
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container header-content">
+            <div class="logo">
+                <span class="logo-icon">⚽</span>
+                <div>
+                    <span class="logo-text">ביתר מוניטור</span>
+                    <span class="logo-subtitle">התראות כרטיסים</span>
+                </div>
+            </div>
+            <div class="header-actions">
+                <a href="pricing.html" class="btn btn-primary btn-sm">
+                    <span>💬</span>
+                    <span>SMS התראות</span>
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="container">
+            <h1 class="hero-title">🎫 לא מפספסים משחק!</h1>
+            <p class="hero-subtitle">עקבו אחרי המשחקים וקבלו התראה ברגע שיש כרטיסים</p>
+        </div>
+    </section>
+
+    <!-- Games Section -->
+    <section class="games-section">
+        <div class="container">
+            <h2 class="section-title">
+                <span>📅</span>
+                <span>משחקים קרובים</span>
+            </h2>
+            
+            <div id="gamesGrid" class="games-grid">
+                <!-- Loading state -->
+                <div class="games-loading" id="gamesLoading">
+                    <div class="spinner"></div>
+                    <p>טוען משחקים...</p>
+                </div>
+            </div>
+            
+            <!-- Empty state (hidden by default) -->
+            <div class="games-empty hidden" id="gamesEmpty">
+                <p>😕 אין משחקים קרובים כרגע</p>
+                <p class="text-muted mt-1">נסו שוב מאוחר יותר</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Follow Modal -->
+    <div class="modal-overlay" id="followModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">🔔 עקוב אחרי המשחק</h3>
+                <button class="modal-close" id="closeModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <!-- Game info -->
+                <div class="game-card" id="modalGameInfo" style="margin-bottom: 20px;">
+                    <!-- Will be filled dynamically -->
+                </div>
+                
+                <!-- Email Form -->
+                <form id="followForm">
+                    <div class="form-group">
+                        <label class="form-label" for="emailInput">כתובת אימייל</label>
+                        <input 
+                            type="email" 
+                            id="emailInput" 
+                            class="form-input" 
+                            placeholder="your@email.com"
+                            required
+                            autocomplete="email"
+                        >
+                        <p class="form-hint">נשלח לכם התראה באימייל כשיהיו כרטיסים</p>
+                    </div>
+                    
+                    <div class="form-group" id="errorContainer" style="display: none;">
+                        <p class="form-error" id="errorMessage"></p>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="submit" class="btn btn-primary btn-block" id="submitFollow">
+                    <span>📧</span>
+                    <span>הרשמה להתראות אימייל (חינם)</span>
+                </button>
+                
+                <div class="divider">או</div>
+                
+                <a href="pricing.html" class="btn btn-outline btn-block" id="upgradeToSms">
+                    <span>💬</span>
+                    <span>שדרוג ל-SMS - לא מפספסים!</span>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <p class="footer-text">© 2025 ביתר מוניטור - כל הזכויות שמורות</p>
+            <p class="footer-slogan">💛🖤 רק ביתר בלב 🖤💛</p>
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script src="js/api.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
