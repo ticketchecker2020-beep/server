@@ -28,9 +28,9 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Server version - UPDATE THIS ON EACH DEPLOY!
-const SERVER_VERSION = '2.8.4';
+const SERVER_VERSION = '2.9.0';
 const VERSION_DATE = '2026-01-25';
-const VERSION_NOTES = 'תיקון: SMS עובד גם כשב-storage שמור קוד קופון במקום license';
+const VERSION_NOTES = 'חדש: אתר עצמאי עם proxy למשחקים והרשמה';
 
 // ============================================
 // 📝 LOGGING SYSTEM
@@ -355,7 +355,7 @@ setInterval(checkLicenseExpiry, 6 * 60 * 60 * 1000);
 function authenticateApiKey(req, res, next) {
   // Skip auth for public endpoints and admin (admin has its own password check)
   // Note: req.path here is relative to /api, so /api/test-email becomes /test-email
-  const publicPaths = ['/health', '/pricing', '/register', '/coupon/validate', '/coupon/activate', '/license/validate', '/license/by-email', '/admin', '/create-pending-order', '/webhook', '/add-game', '/remove-game', '/games', '/test-email', '/test-sms', '/activate-order', '/notify'];
+  const publicPaths = ['/health', '/pricing', '/register', '/coupon/validate', '/coupon/activate', '/license/validate', '/license/by-email', '/admin', '/create-pending-order', '/webhook', '/add-game', '/remove-game', '/games', '/test-email', '/test-sms', '/activate-order', '/notify', '/subscriber'];
   if (publicPaths.some(p => req.path === p || req.path.startsWith(p))) {
     return next();
   }
@@ -1023,6 +1023,119 @@ app.post('/api/remove-game', async (req, res) => {
   
   console.log(`🎮 Game removed from ${subscriberId}: ${gameId}`);
   res.json({ success: true, message: 'Game removed' });
+});
+
+// ============================================
+// 🌐 WEBSITE PROXY ENDPOINTS
+// ============================================
+
+// Proxy endpoint for website to fetch games (avoids CORS)
+app.get('/api/games/proxy', async (req, res) => {
+  try {
+    log.info('proxy', 'Website requesting games proxy...');
+    
+    const response = await fetchWithRetry(LEAAN_URL, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'he-IL,he;q=0.9,en;q=0.8'
+      }
+    }, 3);
+    
+    if (!response.ok) {
+      log.error('proxy', `Failed to fetch leaan.co.il: ${response.status}`);
+      return res.status(502).json({ error: 'Failed to fetch games', events: [] });
+    }
+    
+    const html = await response.text();
+    const games = parseTicketsFromHtml(html);
+    
+    // Format for website consumption
+    const formattedGames = games.map(game => ({
+      id: game.id,
+      name: game.name,
+      opponent: extractOpponentFromName(game.name),
+      date: game.eventDate || null,
+      time: game.eventTime || null,
+      venue: 'טדי',
+      hasTickets: game.available,
+      soldOut: game.soldOut,
+      ticketUrl: game.ticketUrl,
+      competition: 'ליגה'
+    }));
+    
+    log.info('proxy', `Returning ${formattedGames.length} games to website`);
+    res.json({ events: formattedGames, success: true });
+  } catch (error) {
+    log.error('proxy', `Games proxy error: ${error.message}`);
+    res.status(500).json({ error: error.message, events: [] });
+  }
+});
+
+// Helper to extract opponent from game name
+function extractOpponentFromName(gameName) {
+  if (!gameName) return 'יריב';
+  
+  // Remove Beitar Jerusalem from name to get opponent
+  const cleaned = gameName
+    .replace(/בית["\u0022\u05F4]ר\s*ירושלים/gi, '')
+    .replace(/[-–]/g, '')
+    .trim();
+  
+  return cleaned || gameName;
+}
+
+// Subscribe to game from website (email only, no license required)
+app.post('/api/subscriber/add-game', async (req, res) => {
+  const { email, gameId, gameName, source } = req.body;
+  
+  if (!email || !gameId) {
+    return res.status(400).json({ error: 'Email and gameId required' });
+  }
+  
+  try {
+    // Find or create subscriber by email
+    let subscriberId = Object.keys(data.subscribers || {}).find(
+      id => data.subscribers[id].email?.toLowerCase() === email.toLowerCase()
+    );
+    
+    if (!subscriberId) {
+      // Create new subscriber
+      subscriberId = `web-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      data.subscribers = data.subscribers || {};
+      data.subscribers[subscriberId] = {
+        email: email,
+        createdAt: new Date().toISOString(),
+        source: source || 'website',
+        monitoredGames: []
+      };
+    }
+    
+    const subscriber = data.subscribers[subscriberId];
+    subscriber.monitoredGames = subscriber.monitoredGames || [];
+    
+    // Check if game already monitored
+    if (subscriber.monitoredGames.some(g => g.id === gameId)) {
+      return res.json({ success: true, message: 'Game already monitored', subscriberId });
+    }
+    
+    // Add game
+    subscriber.monitoredGames.push({
+      id: gameId,
+      name: gameName,
+      opponent: extractOpponentFromName(gameName),
+      addedAt: new Date().toISOString(),
+      hasTickets: false
+    });
+    
+    await saveData();
+    log.info('website', `New game subscription: ${email} -> ${gameName}`);
+    
+    res.json({ success: true, message: 'Subscribed to game', subscriberId });
+  } catch (error) {
+    log.error('website', `Add game error: ${error.message}`);
+    res.status(500).json({ error: 'Failed to add game subscription' });
+  }
 });
 
 // Get subscriber's monitored games
