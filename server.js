@@ -1072,6 +1072,11 @@ app.get('/api/games/proxy', async (req, res) => {
         
         // Merge Leaan games (for ticket info) with official games
         for (const lg of leaanGames) {
+          // Skip subscriptions, raffles, and non-game items
+          if (isSubscriptionOrNonGame(lg.name)) {
+            continue;
+          }
+          
           // Try to find matching game from official list
           const existingIdx = allGames.findIndex(g => 
             g.eventDate === lg.eventDate || 
@@ -1084,8 +1089,8 @@ app.get('/api/games/proxy', async (req, res) => {
             allGames[existingIdx].soldOut = lg.soldOut;
             allGames[existingIdx].available = lg.available;
             allGames[existingIdx].startingPrice = lg.startingPrice;
-          } else if (!lg.name?.includes('מנוי') && !lg.name?.includes('הגרלה')) {
-            // Add as new game (skip subscriptions and raffles)
+          } else {
+            // Add as new game
             allGames.push(lg);
           }
         }
@@ -1096,6 +1101,21 @@ app.get('/api/games/proxy', async (req, res) => {
       log.warn('proxy', `Leaan failed: ${leaanErr.message}`);
     }
     
+    // Filter out past games and subscriptions
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+    allGames = allGames.filter(g => {
+      // Skip past games
+      if (g.eventDate && g.eventDate < todayStr) {
+        return false;
+      }
+      // Skip subscriptions
+      if (isSubscriptionOrNonGame(g.name)) {
+        return false;
+      }
+      return true;
+    });
+    
     // If both sources failed, return error
     if (allGames.length === 0) {
       log.error('proxy', 'No games from any source');
@@ -1103,21 +1123,29 @@ app.get('/api/games/proxy', async (req, res) => {
     }
     
     // Format for website consumption
-    const formattedGames = allGames.map(game => ({
-      id: game.id,
-      name: game.name,
-      opponent: extractOpponentFromName(game.name),
-      date: game.eventDate || null,
-      time: game.eventTime || null,
-      venue: game.venue || 'אצטדיון טדי',
-      hasTickets: game.available !== false,
-      soldOut: game.soldOut || false,
-      ticketUrl: game.ticketUrl,
-      competition: 'ליגה',
-      startingPrice: game.startingPrice,
-      image: game.image,
-      isHomeGame: game.isHomeGame
-    }));
+    const formattedGames = allGames.map(game => {
+      // Fix invalid times (like 01:59 which is a placeholder)
+      let displayTime = game.eventTime;
+      if (displayTime === '01:59' || displayTime === '00:00' || displayTime === '23:59') {
+        displayTime = null; // Will show as TBD
+      }
+      
+      return {
+        id: game.id,
+        name: game.name,
+        opponent: extractOpponentFromName(game.name),
+        date: game.eventDate || null,
+        time: displayTime,
+        venue: game.venue || 'אצטדיון טדי',
+        hasTickets: game.available !== false,
+        soldOut: game.soldOut || false,
+        ticketUrl: game.ticketUrl,
+        competition: 'ליגה',
+        startingPrice: game.startingPrice,
+        image: game.image,
+        isHomeGame: game.isHomeGame
+      };
+    });
     
     // Sort by date
     formattedGames.sort((a, b) => {
@@ -1145,6 +1173,46 @@ function extractOpponentFromName(gameName) {
     .trim();
   
   return cleaned || gameName;
+}
+
+// Helper to detect subscriptions and non-game items
+function isSubscriptionOrNonGame(name) {
+  if (!name) return true;
+  
+  const lowerName = name.toLowerCase();
+  
+  // Check for subscription indicators
+  const subscriptionPatterns = [
+    'מנוי',
+    'הגרלה',
+    'אירוע',
+    '2024/25',
+    '2025/26',
+    '2026/27',
+    'subscription',
+    'season ticket'
+  ];
+  
+  for (const pattern of subscriptionPatterns) {
+    if (lowerName.includes(pattern.toLowerCase())) {
+      // Exception: if it also contains " - " or " נגד " it's probably a real game
+      if (name.includes(' - ') || name.includes(' נגד ') || name.includes(' vs ')) {
+        return false;
+      }
+      return true;
+    }
+  }
+  
+  // If name doesn't contain any separator between teams, it's probably not a game
+  if (!name.includes(' - ') && !name.includes(' נגד ') && !name.includes(' vs ')) {
+    // Unless it's a simple team name like "הפועל חיפה" 
+    // Check if it has "ביתר" in the name - if not, might be valid opponent
+    if (name.includes('ביתר') && !name.includes('-')) {
+      return true; // Subscription like "בית"ר ירושלים 2025/26"
+    }
+  }
+  
+  return false;
 }
 
 // Subscribe to game from website (email only, no license required)
