@@ -1525,6 +1525,26 @@ app.get('/', (req, res) => {
   `);
 });
 
+// Admin API - Send custom email
+app.post('/api/admin/send-email', async (req, res) => {
+  const adminPass = req.query.p || req.query.password || req.headers['x-admin-password'];
+  if (adminPass !== (process.env.ADMIN_PASSWORD || 'BeitarAdmin123!')) {
+    return res.status(401).json({ error: 'Invalid admin password' });
+  }
+  
+  const { to, subject, html } = req.body;
+  if (!to || !subject || !html) {
+    return res.status(400).json({ error: 'to, subject and html required' });
+  }
+  
+  try {
+    const success = await sendEmail(to, subject, html);
+    res.json({ success, message: success ? 'Email sent' : 'Failed to send email' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Admin API - Get all data for dashboard (used by new dashboard.html)
 app.get('/api/admin/data', async (req, res) => {
   const adminPass = req.query.p || req.query.password || req.headers['x-admin-password'];
