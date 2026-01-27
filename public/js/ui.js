@@ -48,13 +48,10 @@ const UI = {
      * @returns {string} HTML string
      */
     createGameCard(game) {
-        // Use ticketStatus for class, fallback to old logic
         const status = game.ticketStatus || (game.soldOut ? 'soldOut' : (game.hasTickets ? 'available' : 'unknown'));
         const statusClass = status === 'soldOut' ? 'sold-out' : (status === 'available' ? 'has-tickets' : '');
         const statusBadge = this.getStatusBadge(game);
         const priceDisplay = this.formatPrice(game.minPrice, game.maxPrice);
-        
-        // Show buy button only if tickets are available
         const showBuyButton = status === 'available';
         
         return `
@@ -111,15 +108,12 @@ const UI = {
      * @returns {string} HTML string
      */
     getStatusBadge(game) {
-        // Use ticketStatus if available, fallback to old logic
         const status = game.ticketStatus || (game.soldOut ? 'soldOut' : (game.hasTickets ? 'available' : 'unknown'));
-        
         switch (status) {
             case 'soldOut':
                 return '<span class="game-status status-soldout"><span>❌</span> אזל</span>';
             case 'available':
                 return '<span class="game-status status-available"><span>✅</span> יש כרטיסים!</span>';
-            case 'unknown':
             default:
                 return '<span class="game-status status-waiting"><span>⏳</span> טרם נפתחה מכירה</span>';
         }

@@ -61,15 +61,14 @@ const API = {
         
         return data.events.map(event => ({
             id: event.id || event.event_id,
-            name: event.name || event.title || '',  // Full game name for subscription
+            name: event.name || event.title || '',
             opponent: event.opponent || this.extractOpponent(event.name || event.title),
             date: event.date || event.event_date,
             time: event.time || this.extractTime(event.date),
             venue: event.venue || event.location || 'טדי',
-            // Use new ticketStatus field, fallback to old fields for backwards compatibility
             ticketStatus: event.ticketStatus || (event.soldOut ? 'soldOut' : (event.hasTickets ? 'available' : 'unknown')),
-            hasTickets: event.ticketStatus === 'available' || event.hasTickets || event.has_tickets || event.tickets_available || false,
-            soldOut: event.ticketStatus === 'soldOut' || event.soldOut || event.sold_out || false,
+            hasTickets: event.ticketStatus === 'available' || event.hasTickets || false,
+            soldOut: event.ticketStatus === 'soldOut' || event.soldOut || false,
             minPrice: event.startingPrice || event.min_price || event.price_from || null,
             maxPrice: event.max_price || event.price_to || null,
             ticketUrl: event.ticketUrl || event.url || event.ticket_url || `https://www.leaan.co.il/event/${event.id}`,

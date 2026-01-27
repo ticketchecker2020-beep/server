@@ -1079,12 +1079,10 @@ app.get('/api/games/proxy', async (req, res) => {
             continue;
           }
           
-          // Extract opponent name from Leaan game name (format: "בית"ר ירושלים - הפועל חיפה")
+          // Extract opponent name from Leaan game name
           const leaanOpponent = extractOpponentFromName(lg.name);
           
-          // Try to find matching game from official list using:
-          // 1. Date within 1 day tolerance (to handle timezone differences)
-          // 2. AND opponent name match
+          // Try to find matching game using date tolerance (1 day) AND opponent match
           const existingIdx = allGames.findIndex(g => {
             if (!g.eventDate || !lg.eventDate) return false;
             
@@ -1101,7 +1099,7 @@ app.get('/api/games/proxy', async (req, res) => {
                g.name.includes(leaanOpponent) || lg.name.includes(officialOpponent));
             
             if (isDateClose && isOpponentMatch) {
-              log.info('proxy', `✅ Match found: "${g.name}" (${g.eventDate}) ↔ "${lg.name}" (${lg.eventDate})`);
+              log.info('proxy', `Match found: "${g.name}" <-> "${lg.name}"`);
               return true;
             }
             return false;
@@ -1114,8 +1112,8 @@ app.get('/api/games/proxy', async (req, res) => {
             allGames[existingIdx].startingPrice = lg.startingPrice;
             mergedCount++;
           } else {
-            // Add as new game (only if it's a real match from Leaan)
-            log.info('proxy', `Adding new game from Leaan: ${lg.name} (${lg.eventDate})`);
+            // Add as new game from Leaan
+            log.info('proxy', `Adding new game from Leaan: ${lg.name}`);
             allGames.push(lg);
           }
         }
@@ -1155,10 +1153,7 @@ app.get('/api/games/proxy', async (req, res) => {
         displayTime = null; // Will show as TBD
       }
       
-      // Determine ticket status:
-      // - 'available': tickets are available for purchase
-      // - 'soldOut': tickets are sold out
-      // - 'unknown': no information from Leaan (not yet on sale or not found)
+      // Determine ticket status: available, soldOut, or unknown
       const ticketStatus = game.ticketStatus || 'unknown';
       
       return {
@@ -1168,10 +1163,9 @@ app.get('/api/games/proxy', async (req, res) => {
         date: game.eventDate || null,
         time: displayTime,
         venue: game.venue || 'אצטדיון טדי',
-        // For backwards compatibility, also include hasTickets and soldOut
         hasTickets: ticketStatus === 'available',
         soldOut: ticketStatus === 'soldOut',
-        ticketStatus: ticketStatus, // New field with 3 states
+        ticketStatus: ticketStatus,
         ticketUrl: game.ticketUrl,
         competition: 'ליגה',
         startingPrice: game.startingPrice,
@@ -4288,7 +4282,7 @@ function parseGamesFromBeitarOfficial(html) {
         eventTime: extractTimeFromDate(dateStr),
         venue: stadium,
         ticketUrl: 'https://www.leaan.co.il/category/%D7%A1%D7%A4%D7%95%D7%A8%D7%98/%D7%9B%D7%93%D7%95%D7%A8%D7%92%D7%9C/%D7%91%D7%99%D7%AA%D7%A8-%D7%99%D7%A8%D7%95%D7%A9%D7%9C%D7%99%D7%9D',
-        ticketStatus: 'unknown', // Will be updated if found in Leaan
+        ticketStatus: 'unknown',
         isHomeGame
       });
     }
@@ -4319,7 +4313,7 @@ function parseGamesFromBeitarOfficial(html) {
         eventTime: extractTimeFromDate(dateStr),
         venue: stadium,
         ticketUrl: 'https://www.leaan.co.il/category/%D7%A1%D7%A4%D7%95%D7%A8%D7%98/%D7%9B%D7%93%D7%95%D7%A8%D7%92%D7%9C/%D7%91%D7%99%D7%AA%D7%A8-%D7%99%D7%A8%D7%95%D7%A9%D7%9C%D7%99%D7%9D',
-        ticketStatus: 'unknown', // Will be updated if found in Leaan
+        ticketStatus: 'unknown',
         isHomeGame
       });
     }
