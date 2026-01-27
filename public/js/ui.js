@@ -48,9 +48,11 @@ const UI = {
      * @returns {string} HTML string
      */
     createGameCard(game) {
-        const statusClass = game.soldOut ? 'sold-out' : (game.hasTickets ? 'has-tickets' : '');
+        const status = game.ticketStatus || (game.soldOut ? 'soldOut' : (game.hasTickets ? 'available' : 'unknown'));
+        const statusClass = status === 'soldOut' ? 'sold-out' : (status === 'available' ? 'has-tickets' : '');
         const statusBadge = this.getStatusBadge(game);
         const priceDisplay = this.formatPrice(game.minPrice, game.maxPrice);
+        const showBuyButton = status === 'available';
         
         return `
             <div class="game-card ${statusClass}" data-game-id="${game.id}">
@@ -83,13 +85,13 @@ const UI = {
                 </div>
                 
                 <div class="game-actions">
-                    ${game.hasTickets ? `
+                    ${showBuyButton ? `
                         <a href="${game.ticketUrl}" target="_blank" class="btn btn-primary btn-sm">
                             <span>🎫</span>
                             <span>קנה כרטיסים</span>
                         </a>
                     ` : ''}
-                    ${!game.soldOut ? `
+                    ${status !== 'soldOut' ? `
                         <button class="btn btn-outline btn-sm follow-btn" data-game-id="${this.escapeAttr(game.id)}" data-game-name="${this.escapeAttr(game.name || game.opponent)}">
                             <span>🔔</span>
                             <span>עקוב</span>
@@ -106,13 +108,15 @@ const UI = {
      * @returns {string} HTML string
      */
     getStatusBadge(game) {
-        if (game.soldOut) {
-            return '<span class="game-status status-soldout"><span>❌</span> אזל</span>';
+        const status = game.ticketStatus || (game.soldOut ? 'soldOut' : (game.hasTickets ? 'available' : 'unknown'));
+        switch (status) {
+            case 'soldOut':
+                return '<span class="game-status status-soldout"><span>❌</span> אזל</span>';
+            case 'available':
+                return '<span class="game-status status-available"><span>✅</span> יש כרטיסים!</span>';
+            default:
+                return '<span class="game-status status-waiting"><span>⏳</span> טרם נפתחה מכירה</span>';
         }
-        if (game.hasTickets) {
-            return '<span class="game-status status-available"><span>✅</span> יש כרטיסים!</span>';
-        }
-        return '<span class="game-status status-waiting"><span>⏳</span> ממתין לכרטיסים</span>';
     },
     
     /**
