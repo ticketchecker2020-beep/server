@@ -4422,28 +4422,31 @@ async function updateHasTicketsStatus(availableGames) {
       
       // Check if this game matches any available game
       const isAvailable = availableGames.some(availableGame => {
-        // Match by ID
+        // Match by ID (most reliable)
         if (availableGame.id && game.id && availableGame.id === game.id) return true;
         
-        // Match by event date (within same day)
-        if (availableGame.eventDate && game.eventDate) {
+        // Match by event date AND opponent name (strict match)
+        if (availableGame.eventDate && game.eventDate && game.opponent) {
           const availableDate = new Date(availableGame.eventDate).toDateString();
           const gameDate = new Date(game.eventDate).toDateString();
-          if (availableDate === gameDate) return true;
+          
+          // Date must match
+          if (availableDate === gameDate) {
+            // And opponent name must be significant match (at least 4 chars)
+            const availableName = (availableGame.name || '').toLowerCase();
+            const opponent = (game.opponent || '').toLowerCase();
+            if (opponent.length >= 4 && availableName.includes(opponent)) {
+              return true;
+            }
+          }
         }
         
-        // Match by opponent name (partial match)
-        if (availableGame.name && game.opponent) {
+        // Match by opponent name only if opponent is a specific team name (at least 6 chars)
+        if (availableGame.name && game.opponent && game.opponent.length >= 6) {
           const availableName = availableGame.name.toLowerCase();
           const opponent = game.opponent.toLowerCase();
-          if (availableName.includes(opponent) || opponent.includes(availableName.split(' ').pop())) return true;
-        }
-        
-        // Match by game name similarity
-        if (availableGame.name && game.name) {
-          const availableName = availableGame.name.toLowerCase().replace(/[^א-תa-z0-9]/g, '');
-          const gameName = game.name.toLowerCase().replace(/[^א-תa-z0-9]/g, '');
-          if (availableName.includes(gameName) || gameName.includes(availableName)) return true;
+          // Require the full opponent name to appear in the available game name
+          if (availableName.includes(opponent)) return true;
         }
         
         return false;

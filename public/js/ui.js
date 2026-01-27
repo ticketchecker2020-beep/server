@@ -90,7 +90,7 @@ const UI = {
                         </a>
                     ` : ''}
                     ${!game.soldOut ? `
-                        <button class="btn btn-outline btn-sm follow-btn" data-game-id="${game.id}" data-game-name="${this.escapeHtml(game.opponent)}">
+                        <button class="btn btn-outline btn-sm follow-btn" data-game-id="${this.escapeAttr(game.id)}" data-game-name="${this.escapeAttr(game.name || game.opponent)}">
                             <span>🔔</span>
                             <span>עקוב</span>
                         </button>
@@ -277,6 +277,21 @@ const UI = {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    },
+
+    /**
+     * Escape text for use in HTML attributes
+     * @param {string} text - Text to escape
+     * @returns {string} Escaped text safe for attributes
+     */
+    escapeAttr(text) {
+        if (!text) return '';
+        return text
+            .replace(/&/g, '&amp;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
     },
     
     /**

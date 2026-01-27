@@ -61,15 +61,16 @@ const API = {
         
         return data.events.map(event => ({
             id: event.id || event.event_id,
-            opponent: this.extractOpponent(event.name || event.title),
+            name: event.name || event.title || '',  // Full game name for subscription
+            opponent: event.opponent || this.extractOpponent(event.name || event.title),
             date: event.date || event.event_date,
             time: event.time || this.extractTime(event.date),
             venue: event.venue || event.location || 'טדי',
-            hasTickets: event.has_tickets || event.tickets_available || false,
-            soldOut: event.sold_out || false,
-            minPrice: event.min_price || event.price_from || null,
+            hasTickets: event.hasTickets || event.has_tickets || event.tickets_available || false,
+            soldOut: event.soldOut || event.sold_out || false,
+            minPrice: event.startingPrice || event.min_price || event.price_from || null,
             maxPrice: event.max_price || event.price_to || null,
-            ticketUrl: event.url || event.ticket_url || `https://www.leaan.co.il/event/${event.id}`,
+            ticketUrl: event.ticketUrl || event.url || event.ticket_url || `https://www.leaan.co.il/event/${event.id}`,
             imageUrl: event.image || event.image_url || null,
             competition: event.competition || event.category || 'ליגה'
         }));
