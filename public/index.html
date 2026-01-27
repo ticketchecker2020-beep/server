@@ -120,7 +120,7 @@
     <footer class="footer">
         <div class="container">
             <p class="footer-text">© 2025 ביתר מוניטור - כל הזכויות שמורות</p>
-            <p class="footer-slogan">💛🖤 רק ביתר בלב 🖤💛</p>
+            <p class="footer-slogan" id="footerSlogan">💛🖤 רק ביתר בלב 🖤💛</p>
         </div>
     </footer>
 
@@ -128,5 +128,18 @@
     <script src="js/api.js"></script>
     <script src="js/ui.js"></script>
     <script src="js/app.js"></script>
+    <script>
+        // Fan chants - random slogans 🎵
+        const FAN_CHANTS = [
+            'שבחי ירושלים הלב שלי צועק צהוב שחור',
+            'אוהב מכל הלב אוהב אותך כל כך שזה כואב',
+            'ללב נכנסת התאהבתי בך',
+            'עכשיו עומד כאן מאוהב אריה שואג על החולצה מניף את הצעיף',
+            'לא תצעדי לבד אף פעם רק אותך אני אוהב',
+            'אומרים לי שאני קצת משוגע ככה זה באהבה כשאת בתוך הנשמה',
+            'איתך מהיציע ועד הנצח'
+        ];
+        document.getElementById('footerSlogan').textContent = '💛🖤 ' + FAN_CHANTS[Math.floor(Math.random() * FAN_CHANTS.length)] + ' 🖤💛';
+    </script>
 </body>
 </html>

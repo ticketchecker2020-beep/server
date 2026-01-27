@@ -66,8 +66,10 @@ const API = {
             date: event.date || event.event_date,
             time: event.time || this.extractTime(event.date),
             venue: event.venue || event.location || 'טדי',
-            hasTickets: event.hasTickets || event.has_tickets || event.tickets_available || false,
-            soldOut: event.soldOut || event.sold_out || false,
+            // Use new ticketStatus field, fallback to old fields for backwards compatibility
+            ticketStatus: event.ticketStatus || (event.soldOut ? 'soldOut' : (event.hasTickets ? 'available' : 'unknown')),
+            hasTickets: event.ticketStatus === 'available' || event.hasTickets || event.has_tickets || event.tickets_available || false,
+            soldOut: event.ticketStatus === 'soldOut' || event.soldOut || event.sold_out || false,
             minPrice: event.startingPrice || event.min_price || event.price_from || null,
             maxPrice: event.max_price || event.price_to || null,
             ticketUrl: event.ticketUrl || event.url || event.ticket_url || `https://www.leaan.co.il/event/${event.id}`,
