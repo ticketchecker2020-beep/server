@@ -34,15 +34,6 @@
 html {
   font-size: 16px;
   scroll-behavior: smooth;
-}
-
-body {
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  min-height: 100vh;
-  direction: rtl;
-  line-height: 1.6;
   
   /* Background image - Mobile first (tall image) */
   background-image: url('../images/Gemini_Generated_Image_yuaw4iyuaw4iyuaw.png');
@@ -50,27 +41,24 @@ body {
   background-position: center top;
   background-attachment: fixed;
   background-repeat: no-repeat;
+  background-color: var(--bg-primary);
 }
 
 /* Desktop background (wide image) */
 @media (min-width: 768px) {
-  body {
+  html {
     background-image: url('../images/Gemini_Generated_Image_648bt2648bt2648b.png');
     background-position: center center;
   }
 }
 
-/* Dark overlay for better text readability */
-body::before {
-  content: '';
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
-  z-index: -1;
-  pointer-events: none;
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background: rgba(0, 0, 0, 0.65); /* Dark overlay directly on body */
+  color: var(--text-primary);
+  min-height: 100vh;
+  direction: rtl;
+  line-height: 1.6;
 }
 
 a {
