@@ -277,7 +277,7 @@ const API = {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    couponCode: couponCode,
+                    code: couponCode,
                     email: email
                 })
             });
