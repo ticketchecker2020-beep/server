@@ -276,6 +276,7 @@ a:hover {
   display: flex;
   flex-direction: column;
   gap: 15px;
+  overflow: hidden;
 }
 
 .game-card:hover {
@@ -363,6 +364,7 @@ a:hover {
 .game-actions {
   display: flex;
   gap: 10px;
+  flex-wrap: wrap;
 }
 
 /* =============================================
@@ -835,6 +837,7 @@ a:hover {
   .game-card {
     flex-direction: row;
     align-items: center;
+    flex-wrap: wrap;
   }
   
   .game-header {

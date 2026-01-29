@@ -1,0 +1,938 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>בדיקות מערכת - ביתר ירושלים</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        /* Login Screen */
+        .login-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.95);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+        
+        .login-box {
+            background: var(--bg-card);
+            border: 2px solid var(--accent);
+            border-radius: var(--border-radius);
+            padding: 40px;
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+        }
+        
+        .login-box h1 {
+            color: var(--accent);
+            margin-bottom: 10px;
+        }
+        
+        .login-box p {
+            color: var(--text-secondary);
+            margin-bottom: 30px;
+        }
+        
+        .login-box input {
+            width: 100%;
+            padding: 15px;
+            border: 1px solid #444;
+            border-radius: var(--border-radius-sm);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-size: 1.1rem;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        
+        .login-box input:focus {
+            border-color: var(--accent);
+            outline: none;
+        }
+        
+        .login-error {
+            color: var(--danger);
+            margin-bottom: 15px;
+            display: none;
+        }
+        
+        .hidden {
+            display: none !important;
+        }
+        
+        .test-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .test-section {
+            background: var(--bg-card);
+            border-radius: var(--border-radius);
+            padding: 25px;
+            margin-bottom: 20px;
+            border: 1px solid #333;
+        }
+        
+        .test-section h2 {
+            color: var(--accent);
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .test-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        
+        .test-card {
+            background: var(--bg-secondary);
+            border-radius: var(--border-radius-sm);
+            padding: 20px;
+            border: 1px solid #444;
+        }
+        
+        .test-card h3 {
+            color: var(--text-primary);
+            margin-bottom: 15px;
+            font-size: 1rem;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            color: var(--text-secondary);
+            margin-bottom: 5px;
+            font-size: 0.9rem;
+        }
+        
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #444;
+            border-radius: var(--border-radius-sm);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-size: 0.9rem;
+        }
+        
+        .form-group input:focus,
+        .form-group select:focus {
+            border-color: var(--accent);
+            outline: none;
+        }
+        
+        .btn-test {
+            width: 100%;
+            margin-top: 10px;
+        }
+        
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+        
+        .btn-success {
+            background: var(--success);
+            color: black;
+        }
+        
+        .btn-warning {
+            background: var(--warning);
+            color: black;
+        }
+        
+        .log-container {
+            background: #0a0a0a;
+            border-radius: var(--border-radius-sm);
+            padding: 15px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 0.85rem;
+        }
+        
+        .log-entry {
+            padding: 5px 0;
+            border-bottom: 1px solid #222;
+        }
+        
+        .log-entry:last-child {
+            border-bottom: none;
+        }
+        
+        .log-success { color: var(--success); }
+        .log-error { color: var(--danger); }
+        .log-info { color: var(--accent); }
+        .log-warning { color: var(--warning); }
+        
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+        }
+        
+        .status-online {
+            background: rgba(74, 222, 128, 0.2);
+            color: var(--success);
+        }
+        
+        .status-offline {
+            background: rgba(239, 68, 68, 0.2);
+            color: var(--danger);
+        }
+        
+        .quick-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+        
+        .current-games {
+            margin-top: 20px;
+        }
+        
+        .game-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            background: var(--bg-primary);
+            border-radius: var(--border-radius-sm);
+            margin-bottom: 10px;
+        }
+        
+        .game-item-info {
+            flex: 1;
+        }
+        
+        .game-item-actions {
+            display: flex;
+            gap: 5px;
+        }
+        
+        .btn-sm {
+            padding: 5px 10px;
+            font-size: 0.8rem;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-card {
+            background: var(--bg-secondary);
+            padding: 15px;
+            border-radius: var(--border-radius-sm);
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: var(--accent);
+        }
+        
+        .stat-label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        @media (max-width: 768px) {
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Login Screen -->
+    <div id="loginOverlay" class="login-overlay">
+        <div class="login-box">
+            <h1>🔐 כניסת מנהל</h1>
+            <p>דף זה מוגן בסיסמה</p>
+            <div id="loginError" class="login-error">❌ סיסמה שגויה</div>
+            <input type="password" id="adminPassword" placeholder="הזן סיסמה" onkeypress="if(event.key==='Enter')checkPassword()">
+            <button class="btn btn-primary" onclick="checkPassword()" style="width: 100%;">🔓 כניסה</button>
+        </div>
+    </div>
+
+    <!-- Main Content (hidden until login) -->
+    <div id="mainContent" class="hidden">
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">
+                    <span class="logo-icon">🛠️</span>
+                    <div>
+                        <span class="logo-text">מערכת בדיקות</span>
+                        <span class="logo-subtitle">ביתר ירושלים - ניטור כרטיסים</span>
+                    </div>
+                </div>
+                <div class="header-actions">
+                    <a href="index.html" class="btn btn-outline btn-sm">🏠 חזרה לאתר</a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="test-container">
+        <!-- Server Status -->
+        <div class="test-section">
+            <h2>📊 סטטוס מערכת</h2>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="totalGames">-</div>
+                    <div class="stat-label">משחקים</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="availableGames">-</div>
+                    <div class="stat-label">כרטיסים זמינים</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="totalSubscribers">-</div>
+                    <div class="stat-label">מנויים</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="serverStatus">-</div>
+                    <div class="stat-label">שרת</div>
+                </div>
+            </div>
+            <div class="quick-actions">
+                <button class="btn btn-primary btn-sm" onclick="refreshStatus()">🔄 רענן סטטוס</button>
+                <button class="btn btn-outline btn-sm" onclick="checkHealth()">❤️ בדיקת תקינות</button>
+                <button class="btn btn-outline btn-sm" onclick="forceCheck()">🔍 בדיקה ידנית של כרטיסים</button>
+            </div>
+        </div>
+
+        <div class="test-grid">
+            <!-- Add Test Game -->
+            <div class="test-section">
+                <h2>⚽ הוספת משחק בדיקה</h2>
+                <div class="test-card">
+                    <h3>משחק חדש</h3>
+                    <div class="form-group">
+                        <label>שם היריבה</label>
+                        <input type="text" id="testOpponent" placeholder="מכבי תל אביב" value="קבוצת בדיקה">
+                    </div>
+                    <div class="form-group">
+                        <label>תאריך</label>
+                        <input type="date" id="testDate">
+                    </div>
+                    <div class="form-group">
+                        <label>שעה</label>
+                        <input type="time" id="testTime" value="20:00">
+                    </div>
+                    <div class="form-group">
+                        <label>סטטוס</label>
+                        <select id="testStatus">
+                            <option value="unknown">לא ידוע</option>
+                            <option value="available">כרטיסים זמינים</option>
+                            <option value="soldOut">אזלו הכרטיסים</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>מחיר (אופציונלי)</label>
+                        <input type="text" id="testPrice" placeholder="החל מ-50₪">
+                    </div>
+                    <button class="btn btn-primary btn-test" onclick="addTestGame()">➕ הוסף משחק</button>
+                </div>
+            </div>
+
+            <!-- Notification Tests -->
+            <div class="test-section">
+                <h2>📧 בדיקת התראות</h2>
+                <div class="test-card">
+                    <h3>שלח מייל בדיקה</h3>
+                    <div class="form-group">
+                        <label>כתובת מייל</label>
+                        <input type="email" id="testEmail" placeholder="your@email.com">
+                    </div>
+                    <button class="btn btn-primary btn-test" onclick="sendTestEmail()">📧 שלח מייל</button>
+                </div>
+                <div class="test-card" style="margin-top: 15px;">
+                    <h3>שלח SMS בדיקה</h3>
+                    <div class="form-group">
+                        <label>מספר טלפון</label>
+                        <input type="tel" id="testPhone" placeholder="0501234567">
+                    </div>
+                    <button class="btn btn-primary btn-test" onclick="sendTestSMS()">📱 שלח SMS</button>
+                </div>
+            </div>
+
+            <!-- Simulate Availability Change -->
+            <div class="test-section">
+                <h2>🎭 סימולציה - שינוי זמינות</h2>
+                <div class="test-card">
+                    <h3>הפוך משחק לזמין (יפעיל התראות!)</h3>
+                    <div class="form-group">
+                        <label>בחר משחק</label>
+                        <select id="simulateGameSelect">
+                            <option value="">טוען משחקים...</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>סטטוס חדש</label>
+                        <select id="simulateStatus">
+                            <option value="available">✅ כרטיסים זמינים</option>
+                            <option value="unknown">❓ לא ידוע</option>
+                            <option value="soldOut">❌ אזלו</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-warning btn-test" onclick="simulateStatusChange()">⚡ שנה סטטוס (יפעיל התראות!)</button>
+                </div>
+            </div>
+
+            <!-- Subscriber Management -->
+            <div class="test-section">
+                <h2>👥 ניהול מנויים</h2>
+                <div class="test-card">
+                    <h3>הוסף מנוי בדיקה</h3>
+                    <div class="form-group">
+                        <label>מייל</label>
+                        <input type="email" id="subEmail" placeholder="test@test.com">
+                    </div>
+                    <div class="form-group">
+                        <label>טלפון</label>
+                        <input type="tel" id="subPhone" placeholder="0501234567">
+                    </div>
+                    <div class="form-group">
+                        <label>משחק (ID)</label>
+                        <select id="subGameSelect">
+                            <option value="all">כל המשחקים</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-success btn-test" onclick="addTestSubscriber()">➕ הוסף מנוי</button>
+                </div>
+                <div class="test-card" style="margin-top: 15px;">
+                    <h3>רשימת מנויים</h3>
+                    <div id="subscribersList" style="max-height: 200px; overflow-y: auto;">
+                        טוען...
+                    </div>
+                </div>
+            </div>
+
+            <!-- Coupon Tests -->
+            <div class="test-section">
+                <h2>🎟️ בדיקת קופונים</h2>
+                <div class="test-card">
+                    <h3>בדוק קופון</h3>
+                    <div class="form-group">
+                        <label>קוד קופון</label>
+                        <input type="text" id="testCoupon" placeholder="BEITARFOREVER">
+                    </div>
+                    <div class="form-group">
+                        <label>מייל</label>
+                        <input type="email" id="couponEmail" placeholder="test@test.com">
+                    </div>
+                    <div class="form-group">
+                        <label>טלפון</label>
+                        <input type="tel" id="couponPhone" placeholder="0501234567">
+                    </div>
+                    <button class="btn btn-primary btn-test" onclick="testCoupon()">✅ בדוק קופון</button>
+                </div>
+            </div>
+
+            <!-- API Tests -->
+            <div class="test-section">
+                <h2>🔌 בדיקות API</h2>
+                <div class="test-card">
+                    <h3>בדיקה מהירה</h3>
+                    <button class="btn btn-outline btn-test" onclick="testAPI('/api/games')">📋 GET /api/games</button>
+                    <button class="btn btn-outline btn-test" onclick="testAPI('/api/subscribers')">👥 GET /api/subscribers</button>
+                    <button class="btn btn-outline btn-test" onclick="testAPI('/api/health')">❤️ GET /api/health</button>
+                    <button class="btn btn-outline btn-test" onclick="testAPI('/api/stats')">📊 GET /api/stats</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Current Games List -->
+        <div class="test-section">
+            <h2>📅 משחקים נוכחיים</h2>
+            <div id="currentGamesList">טוען...</div>
+        </div>
+
+        <!-- Log Section -->
+        <div class="test-section">
+            <h2>📜 לוג פעולות</h2>
+            <div class="quick-actions">
+                <button class="btn btn-outline btn-sm" onclick="clearLog()">🗑️ נקה לוג</button>
+                <button class="btn btn-outline btn-sm" onclick="exportLog()">📥 ייצא לוג</button>
+            </div>
+            <div class="log-container" id="logContainer">
+                <div class="log-entry log-info">[מערכת] מוכן לבדיקות...</div>
+            </div>
+        </div>
+    </main>
+    </div> <!-- End mainContent -->
+
+    <script>
+        // ============================================
+        // 🔐 PASSWORD PROTECTION
+        // ============================================
+        const ADMIN_PASSWORD = 'Beitar2026!'; // Change this password!
+        const SESSION_KEY = 'beitar_admin_auth';
+        
+        function checkPassword() {
+            const input = document.getElementById('adminPassword').value;
+            const errorDiv = document.getElementById('loginError');
+            
+            if (input === ADMIN_PASSWORD) {
+                // Save to session storage (cleared when browser closes)
+                sessionStorage.setItem(SESSION_KEY, 'authenticated');
+                document.getElementById('loginOverlay').classList.add('hidden');
+                document.getElementById('mainContent').classList.remove('hidden');
+                initializeApp();
+            } else {
+                errorDiv.style.display = 'block';
+                document.getElementById('adminPassword').value = '';
+                document.getElementById('adminPassword').focus();
+            }
+        }
+        
+        // Check if already authenticated in this session
+        function checkAuth() {
+            if (sessionStorage.getItem(SESSION_KEY) === 'authenticated') {
+                document.getElementById('loginOverlay').classList.add('hidden');
+                document.getElementById('mainContent').classList.remove('hidden');
+                initializeApp();
+            } else {
+                document.getElementById('adminPassword').focus();
+            }
+        }
+        
+        // Run on page load
+        document.addEventListener('DOMContentLoaded', checkAuth);
+        
+        // ============================================
+        // 🎮 MAIN APPLICATION
+        // ============================================
+        
+        // Configuration
+        const API_BASE = window.location.origin;
+        let games = [];
+        let logEntries = [];
+
+        // Initialize app (called after successful login)
+        function initializeApp() {
+            // Set default date to tomorrow
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 7);
+            document.getElementById('testDate').value = tomorrow.toISOString().split('T')[0];
+            
+            refreshStatus();
+            loadGames();
+            
+            // Load subscribers after a short delay
+            setTimeout(loadSubscribers, 1000);
+        }
+
+        // Logging
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString('he-IL');
+            const entry = { timestamp, message, type };
+            logEntries.unshift(entry);
+            
+            const container = document.getElementById('logContainer');
+            const div = document.createElement('div');
+            div.className = `log-entry log-${type}`;
+            div.textContent = `[${timestamp}] ${message}`;
+            container.insertBefore(div, container.firstChild);
+            
+            // Keep only last 100 entries
+            if (container.children.length > 100) {
+                container.removeChild(container.lastChild);
+            }
+        }
+
+        function clearLog() {
+            document.getElementById('logContainer').innerHTML = '';
+            logEntries = [];
+            log('לוג נוקה', 'info');
+        }
+
+        function exportLog() {
+            const text = logEntries.map(e => `[${e.timestamp}] [${e.type}] ${e.message}`).join('\n');
+            const blob = new Blob([text], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `beitar-test-log-${new Date().toISOString().slice(0,10)}.txt`;
+            a.click();
+            log('לוג יוצא לקובץ', 'success');
+        }
+
+        // API Helpers
+        async function apiCall(endpoint, method = 'GET', body = null) {
+            try {
+                const options = {
+                    method,
+                    headers: { 'Content-Type': 'application/json' }
+                };
+                if (body) {
+                    options.body = JSON.stringify(body);
+                }
+                
+                log(`${method} ${endpoint}`, 'info');
+                const response = await fetch(`${API_BASE}${endpoint}`, options);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    log(`✅ תגובה: ${JSON.stringify(data).substring(0, 100)}...`, 'success');
+                } else {
+                    log(`❌ שגיאה: ${data.error || data.message || 'Unknown error'}`, 'error');
+                }
+                
+                return { ok: response.ok, data };
+            } catch (error) {
+                log(`❌ שגיאת רשת: ${error.message}`, 'error');
+                return { ok: false, error: error.message };
+            }
+        }
+
+        // Status & Health
+        async function refreshStatus() {
+            log('מרענן סטטוס מערכת...', 'info');
+            
+            try {
+                const healthRes = await fetch(`${API_BASE}/api/health`);
+                const health = await healthRes.json();
+                
+                document.getElementById('serverStatus').textContent = healthRes.ok ? '✅' : '❌';
+                document.getElementById('serverStatus').style.color = healthRes.ok ? 'var(--success)' : 'var(--danger)';
+                
+                // Get games
+                const gamesRes = await fetch(`${API_BASE}/api/games`);
+                const gamesData = await gamesRes.json();
+                games = gamesData.games || [];
+                
+                document.getElementById('totalGames').textContent = games.length;
+                document.getElementById('availableGames').textContent = games.filter(g => g.status === 'available').length;
+                
+                // Get subscribers
+                const subsRes = await fetch(`${API_BASE}/api/subscribers`);
+                const subsData = await subsRes.json();
+                document.getElementById('totalSubscribers').textContent = subsData.subscribers?.length || 0;
+                
+                log('סטטוס עודכן בהצלחה', 'success');
+            } catch (error) {
+                log(`שגיאה בעדכון סטטוס: ${error.message}`, 'error');
+                document.getElementById('serverStatus').textContent = '❌';
+            }
+        }
+
+        async function checkHealth() {
+            const result = await apiCall('/api/health');
+            if (result.ok) {
+                alert('✅ השרת תקין!\n\n' + JSON.stringify(result.data, null, 2));
+            } else {
+                alert('❌ בעיה בשרת!');
+            }
+        }
+
+        async function forceCheck() {
+            log('מבצע בדיקה ידנית של כרטיסים...', 'warning');
+            const result = await apiCall('/api/admin/check-now', 'POST');
+            if (result.ok) {
+                log('בדיקה ידנית הושלמה', 'success');
+                await loadGames();
+            }
+        }
+
+        // Games
+        async function loadGames() {
+            try {
+                const response = await fetch(`${API_BASE}/api/games`);
+                const data = await response.json();
+                games = data.games || [];
+                
+                updateGameSelects();
+                renderGamesList();
+                log(`נטענו ${games.length} משחקים`, 'success');
+            } catch (error) {
+                log(`שגיאה בטעינת משחקים: ${error.message}`, 'error');
+            }
+        }
+
+        function updateGameSelects() {
+            const selects = ['simulateGameSelect', 'subGameSelect'];
+            selects.forEach(selectId => {
+                const select = document.getElementById(selectId);
+                const currentValue = select.value;
+                
+                // Keep first option
+                const firstOption = select.options[0];
+                select.innerHTML = '';
+                select.appendChild(firstOption);
+                
+                games.forEach(game => {
+                    const option = document.createElement('option');
+                    option.value = game.id;
+                    const statusEmoji = game.status === 'available' ? '✅' : game.status === 'soldOut' ? '❌' : '❓';
+                    option.textContent = `${statusEmoji} ${game.opponent || game.name} - ${formatDate(game.date)}`;
+                    select.appendChild(option);
+                });
+                
+                if (currentValue) select.value = currentValue;
+            });
+        }
+
+        function renderGamesList() {
+            const container = document.getElementById('currentGamesList');
+            
+            if (games.length === 0) {
+                container.innerHTML = '<p style="color: var(--text-muted);">אין משחקים במערכת</p>';
+                return;
+            }
+            
+            container.innerHTML = games.map(game => `
+                <div class="game-item">
+                    <div class="game-item-info">
+                        <strong>${game.opponent || game.name}</strong>
+                        <br>
+                        <small style="color: var(--text-muted)">
+                            📅 ${formatDate(game.date)} | 
+                            ${getStatusBadge(game.status)} |
+                            ID: ${game.id}
+                        </small>
+                    </div>
+                    <div class="game-item-actions">
+                        <button class="btn btn-success btn-sm" onclick="setGameStatus('${game.id}', 'available')" title="הפוך לזמין">✅</button>
+                        <button class="btn btn-warning btn-sm" onclick="setGameStatus('${game.id}', 'unknown')" title="הפוך ללא ידוע">❓</button>
+                        <button class="btn btn-danger btn-sm" onclick="setGameStatus('${game.id}', 'soldOut')" title="הפוך לאזל">❌</button>
+                        <button class="btn btn-outline btn-sm" onclick="deleteGame('${game.id}')" title="מחק">🗑️</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function getStatusBadge(status) {
+            switch (status) {
+                case 'available': return '<span style="color: var(--success)">✅ זמין</span>';
+                case 'soldOut': return '<span style="color: var(--danger)">❌ אזל</span>';
+                default: return '<span style="color: var(--warning)">❓ לא ידוע</span>';
+            }
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return 'לא ידוע';
+            const date = new Date(dateStr);
+            return date.toLocaleDateString('he-IL', { day: 'numeric', month: 'short', year: 'numeric' });
+        }
+
+        async function addTestGame() {
+            const opponent = document.getElementById('testOpponent').value;
+            const date = document.getElementById('testDate').value;
+            const time = document.getElementById('testTime').value;
+            const status = document.getElementById('testStatus').value;
+            const price = document.getElementById('testPrice').value;
+            
+            if (!opponent || !date) {
+                alert('נא למלא שם יריבה ותאריך');
+                return;
+            }
+            
+            const game = {
+                id: `test-${Date.now()}`,
+                opponent,
+                name: `ביתר ירושלים נגד ${opponent}`,
+                date: `${date}T${time}:00`,
+                status,
+                price: price || null,
+                venue: 'אצטדיון טדי',
+                ticketUrl: 'https://example.com/tickets',
+                isTest: true
+            };
+            
+            log(`מוסיף משחק בדיקה: ${opponent}`, 'info');
+            const result = await apiCall('/api/admin/test-game', 'POST', game);
+            
+            if (result.ok) {
+                log(`✅ משחק נוסף בהצלחה: ${opponent}`, 'success');
+                await loadGames();
+                await refreshStatus();
+            }
+        }
+
+        async function setGameStatus(gameId, status) {
+            log(`משנה סטטוס משחק ${gameId} ל-${status}`, 'warning');
+            const result = await apiCall('/api/admin/set-status', 'POST', { gameId, status });
+            
+            if (result.ok) {
+                log(`✅ סטטוס עודכן. התראות נשלחו: ${result.data.notificationsSent || 0}`, 'success');
+                await loadGames();
+                await refreshStatus();
+            }
+        }
+
+        async function deleteGame(gameId) {
+            if (!confirm('למחוק את המשחק?')) return;
+            
+            log(`מוחק משחק ${gameId}`, 'warning');
+            const result = await apiCall(`/api/admin/game/${gameId}`, 'DELETE');
+            
+            if (result.ok) {
+                log('✅ משחק נמחק', 'success');
+                await loadGames();
+                await refreshStatus();
+            }
+        }
+
+        async function simulateStatusChange() {
+            const gameId = document.getElementById('simulateGameSelect').value;
+            const status = document.getElementById('simulateStatus').value;
+            
+            if (!gameId) {
+                alert('נא לבחור משחק');
+                return;
+            }
+            
+            if (!confirm(`⚠️ פעולה זו תשנה את סטטוס המשחק ועלולה לשלוח התראות אמיתיות למנויים!\n\nלהמשיך?`)) {
+                return;
+            }
+            
+            await setGameStatus(gameId, status);
+        }
+
+        // Notifications
+        async function sendTestEmail() {
+            const email = document.getElementById('testEmail').value;
+            if (!email) {
+                alert('נא להזין כתובת מייל');
+                return;
+            }
+            
+            log(`שולח מייל בדיקה ל-${email}`, 'info');
+            const result = await apiCall('/api/admin/test-email', 'POST', { email });
+            
+            if (result.ok) {
+                log(`✅ מייל נשלח בהצלחה ל-${email}`, 'success');
+                alert('מייל נשלח בהצלחה!');
+            }
+        }
+
+        async function sendTestSMS() {
+            const phone = document.getElementById('testPhone').value;
+            if (!phone) {
+                alert('נא להזין מספר טלפון');
+                return;
+            }
+            
+            log(`שולח SMS בדיקה ל-${phone}`, 'info');
+            const result = await apiCall('/api/admin/test-sms', 'POST', { phone });
+            
+            if (result.ok) {
+                log(`✅ SMS נשלח בהצלחה ל-${phone}`, 'success');
+                alert('SMS נשלח בהצלחה!');
+            }
+        }
+
+        // Subscribers
+        async function addTestSubscriber() {
+            const email = document.getElementById('subEmail').value;
+            const phone = document.getElementById('subPhone').value;
+            const gameId = document.getElementById('subGameSelect').value;
+            
+            if (!email && !phone) {
+                alert('נא להזין מייל או טלפון');
+                return;
+            }
+            
+            log(`מוסיף מנוי בדיקה`, 'info');
+            const result = await apiCall('/api/subscribe', 'POST', {
+                email: email || undefined,
+                phone: phone || undefined,
+                gameId: gameId || 'all'
+            });
+            
+            if (result.ok) {
+                log('✅ מנוי נוסף בהצלחה', 'success');
+                await loadSubscribers();
+                await refreshStatus();
+            }
+        }
+
+        async function loadSubscribers() {
+            try {
+                const response = await fetch(`${API_BASE}/api/subscribers`);
+                const data = await response.json();
+                const subscribers = data.subscribers || [];
+                
+                const container = document.getElementById('subscribersList');
+                if (subscribers.length === 0) {
+                    container.innerHTML = '<p style="color: var(--text-muted);">אין מנויים</p>';
+                    return;
+                }
+                
+                container.innerHTML = subscribers.slice(0, 20).map(sub => `
+                    <div style="padding: 5px; border-bottom: 1px solid #333; font-size: 0.85rem;">
+                        ${sub.email || ''} ${sub.phone || ''} 
+                        <small style="color: var(--text-muted)">(${sub.gameId || 'all'})</small>
+                    </div>
+                `).join('');
+                
+                if (subscribers.length > 20) {
+                    container.innerHTML += `<p style="color: var(--text-muted); font-size: 0.8rem;">...ועוד ${subscribers.length - 20}</p>`;
+                }
+            } catch (error) {
+                log(`שגיאה בטעינת מנויים: ${error.message}`, 'error');
+            }
+        }
+
+        // Coupons
+        async function testCoupon() {
+            const code = document.getElementById('testCoupon').value;
+            const email = document.getElementById('couponEmail').value;
+            const phone = document.getElementById('couponPhone').value;
+            
+            if (!code) {
+                alert('נא להזין קוד קופון');
+                return;
+            }
+            
+            log(`בודק קופון: ${code}`, 'info');
+            const result = await apiCall('/api/coupon/activate', 'POST', { code, email, phone });
+            
+            if (result.ok) {
+                log(`✅ קופון תקין! הנחה: ${result.data.discount}%`, 'success');
+                alert(`✅ קופון תקין!\n\nהנחה: ${result.data.discount}%\nסוג: ${result.data.type || 'standard'}`);
+            } else {
+                alert(`❌ קופון לא תקין\n\n${result.data?.error || 'Unknown error'}`);
+            }
+        }
+
+        // Generic API Test
+        async function testAPI(endpoint) {
+            const result = await apiCall(endpoint);
+            console.log(result);
+            alert(`תוצאה מ-${endpoint}:\n\n${JSON.stringify(result.data, null, 2).substring(0, 500)}`);
+        }
+    </script>
+</body>
+</html>

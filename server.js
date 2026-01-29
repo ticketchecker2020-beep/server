@@ -1025,6 +1025,29 @@ app.post('/api/remove-game', async (req, res) => {
   res.json({ success: true, message: 'Game removed' });
 });
 
+// Get all games (for admin/testing)
+app.get('/api/games', (req, res) => {
+  res.json({
+    games: data.lastKnownGames || [],
+    lastCheck: data.lastTicketCheck,
+    count: (data.lastKnownGames || []).length
+  });
+});
+
+// Get all subscribers (for admin/testing)
+app.get('/api/subscribers', (req, res) => {
+  const subscribers = Object.entries(data.subscribers || {}).map(([email, sub]) => ({
+    email,
+    ...sub
+  }));
+  
+  res.json({
+    subscribers,
+    count: subscribers.length,
+    activeCount: subscribers.filter(s => s.active).length
+  });
+});
+
 // ============================================
 // 🌐 WEBSITE PROXY ENDPOINTS
 // ============================================
@@ -4881,6 +4904,258 @@ app.get('/api/monitor/status', (req, res) => {
     subscriberCount: Object.keys(data.subscribers || {}).filter(e => data.subscribers[e].active).length,
     lastKnownGames: data.lastKnownGames?.length || 0,
     nextCheck: 'Every 5 minutes'
+  });
+});
+
+// ============================================
+// 🧪 ADMIN TEST ENDPOINTS
+// ============================================
+
+// Add test game
+app.post('/api/admin/test-game', async (req, res) => {
+  try {
+    const game = req.body;
+    
+    if (!game.id || !game.opponent) {
+      return res.status(400).json({ error: 'Game must have id and opponent' });
+    }
+    
+    // Add to games list
+    if (!data.lastKnownGames) {
+      data.lastKnownGames = [];
+    }
+    
+    // Remove if exists (update)
+    data.lastKnownGames = data.lastKnownGames.filter(g => g.id !== game.id);
+    
+    // Add new game
+    data.lastKnownGames.push({
+      id: game.id,
+      name: game.name || `ביתר ירושלים נגד ${game.opponent}`,
+      opponent: game.opponent,
+      date: game.date,
+      time: game.time,
+      venue: game.venue || 'אצטדיון טדי',
+      status: game.status || 'unknown',
+      ticketUrl: game.ticketUrl || '#',
+      price: game.price,
+      isTest: true,
+      addedAt: new Date().toISOString()
+    });
+    
+    await saveData();
+    
+    log.success('api', `Test game added: ${game.opponent}`, { gameId: game.id });
+    
+    res.json({ 
+      success: true, 
+      message: 'Game added',
+      game: data.lastKnownGames.find(g => g.id === game.id)
+    });
+  } catch (error) {
+    log.error('api', 'Failed to add test game', { error: error.message });
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Set game status (with optional notification trigger)
+app.post('/api/admin/set-status', async (req, res) => {
+  try {
+    const { gameId, status, triggerNotifications = true } = req.body;
+    
+    if (!gameId || !status) {
+      return res.status(400).json({ error: 'gameId and status required' });
+    }
+    
+    if (!data.lastKnownGames) {
+      return res.status(404).json({ error: 'No games found' });
+    }
+    
+    const gameIndex = data.lastKnownGames.findIndex(g => g.id === gameId);
+    if (gameIndex === -1) {
+      return res.status(404).json({ error: 'Game not found' });
+    }
+    
+    const game = data.lastKnownGames[gameIndex];
+    const previousStatus = game.status;
+    game.status = status;
+    game.lastStatusChange = new Date().toISOString();
+    
+    await saveData();
+    
+    let notificationsSent = 0;
+    
+    // If changing to 'available' and triggerNotifications is true, send notifications
+    if (status === 'available' && previousStatus !== 'available' && triggerNotifications) {
+      log.info('api', `Status changed to available, triggering notifications for: ${game.opponent}`);
+      
+      // Send notifications to all active subscribers
+      const subscribers = Object.entries(data.subscribers || {})
+        .filter(([_, sub]) => sub.active);
+      
+      for (const [email, subscriber] of subscribers) {
+        try {
+          // Send email
+          if (subscriber.emails && subscriber.emails.length > 0) {
+            await sendNotificationEmail(subscriber.emails, [{
+              opponent: game.opponent,
+              date: game.date,
+              venue: game.venue,
+              ticketUrl: game.ticketUrl
+            }]);
+            notificationsSent++;
+          }
+          
+          // Send SMS if enabled
+          if (subscriber.smsEnabled && subscriber.phone) {
+            await send019SMS(subscriber.phone, `🎟️ כרטיסים זמינים! ${game.opponent} - ${game.date}. לרכישה: ${game.ticketUrl}`);
+            notificationsSent++;
+          }
+        } catch (err) {
+          log.error('api', `Failed to notify ${email}`, { error: err.message });
+        }
+      }
+    }
+    
+    log.success('api', `Game status updated: ${game.opponent} ${previousStatus} -> ${status}`, { notificationsSent });
+    
+    res.json({ 
+      success: true, 
+      message: 'Status updated',
+      previousStatus,
+      newStatus: status,
+      notificationsSent
+    });
+  } catch (error) {
+    log.error('api', 'Failed to set game status', { error: error.message });
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Delete game
+app.delete('/api/admin/game/:gameId', async (req, res) => {
+  try {
+    const { gameId } = req.params;
+    
+    if (!data.lastKnownGames) {
+      return res.status(404).json({ error: 'No games found' });
+    }
+    
+    const gameIndex = data.lastKnownGames.findIndex(g => g.id === gameId);
+    if (gameIndex === -1) {
+      return res.status(404).json({ error: 'Game not found' });
+    }
+    
+    const deletedGame = data.lastKnownGames.splice(gameIndex, 1)[0];
+    await saveData();
+    
+    log.info('api', `Game deleted: ${deletedGame.opponent}`, { gameId });
+    
+    res.json({ success: true, message: 'Game deleted', deletedGame });
+  } catch (error) {
+    log.error('api', 'Failed to delete game', { error: error.message });
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Send test email
+app.post('/api/admin/test-email', async (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({ error: 'Email required' });
+    }
+    
+    if (!emailTransporter) {
+      return res.status(500).json({ error: 'Email not configured on server' });
+    }
+    
+    await emailTransporter.sendMail({
+      from: `"ביתר ירושלים - בדיקה" <${process.env.EMAIL_USER || 'test@beitar.com'}>`,
+      to: email,
+      subject: '🧪 מייל בדיקה - מערכת ביתר',
+      html: `
+        <div style="font-family: Arial, sans-serif; direction: rtl; padding: 20px; background: #1a1a2e; color: white;">
+          <h1 style="color: #ffd700;">🧪 מייל בדיקה</h1>
+          <p>זהו מייל בדיקה ממערכת ניטור הכרטיסים של ביתר ירושלים.</p>
+          <p>אם קיבלת את המייל הזה - המערכת עובדת תקין! ✅</p>
+          <p style="color: #888; margin-top: 30px;">נשלח ב: ${new Date().toLocaleString('he-IL')}</p>
+          <p style="color: #ffd700;">💛🖤 רק ביתר בלב!</p>
+        </div>
+      `
+    });
+    
+    log.success('api', `Test email sent to ${email}`);
+    
+    res.json({ success: true, message: 'Test email sent' });
+  } catch (error) {
+    log.error('api', 'Failed to send test email', { error: error.message });
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Send test SMS
+app.post('/api/admin/test-sms', async (req, res) => {
+  try {
+    const { phone } = req.body;
+    
+    if (!phone) {
+      return res.status(400).json({ error: 'Phone required' });
+    }
+    
+    const smsStatus = checkSMSStatus();
+    if (!smsStatus.configured) {
+      return res.status(500).json({ error: 'SMS not configured on server' });
+    }
+    
+    const result = await send019SMS(phone, `🧪 הודעת בדיקה ממערכת ביתר. אם קיבלת את זה - המערכת עובדת! 💛🖤`);
+    
+    if (result.success) {
+      log.success('api', `Test SMS sent to ${phone}`);
+      res.json({ success: true, message: 'Test SMS sent' });
+    } else {
+      throw new Error(result.error || 'SMS send failed');
+    }
+  } catch (error) {
+    log.error('api', 'Failed to send test SMS', { error: error.message });
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Force ticket check
+app.post('/api/admin/check-now', async (req, res) => {
+  try {
+    log.info('api', 'Manual ticket check triggered');
+    
+    // Run the check (but don't wait for it to complete)
+    checkTicketsAndNotify().catch(err => {
+      log.error('api', 'Manual check failed', { error: err.message });
+    });
+    
+    res.json({ success: true, message: 'Ticket check started' });
+  } catch (error) {
+    log.error('api', 'Failed to trigger manual check', { error: error.message });
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get stats
+app.get('/api/stats', (req, res) => {
+  const activeSubscribers = Object.entries(data.subscribers || {})
+    .filter(([_, sub]) => sub.active);
+  
+  const gamesWithTickets = (data.lastKnownGames || [])
+    .filter(g => g.status === 'available');
+  
+  res.json({
+    totalGames: (data.lastKnownGames || []).length,
+    availableGames: gamesWithTickets.length,
+    totalSubscribers: activeSubscribers.length,
+    emailsSent: data.usage?.emailsSent || 0,
+    smsSent: data.usage?.smsSent || 0,
+    lastCheck: data.lastTicketCheck,
+    serverVersion: SERVER_VERSION
   });
 });
 

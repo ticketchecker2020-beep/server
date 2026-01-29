@@ -91,7 +91,7 @@ const UI = {
                             <span>קנה כרטיסים</span>
                         </a>
                     ` : ''}
-                    ${status !== 'soldOut' ? `
+                    ${status === 'unknown' ? `
                         <button class="btn btn-outline btn-sm follow-btn" data-game-id="${this.escapeAttr(game.id)}" data-game-name="${this.escapeAttr(game.name || game.opponent)}">
                             <span>🔔</span>
                             <span>עקוב</span>
