@@ -201,7 +201,7 @@ const API = {
      */
     async createPayment(email, phone) {
         try {
-            const response = await fetch(`${this.serverUrl}/api/payment/create`, {
+            const response = await fetch(`${this.serverUrl}/api/create-pending-order`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -209,8 +209,7 @@ const API = {
                 body: JSON.stringify({
                     email: email,
                     phone: phone,
-                    plan: 'sms-season',
-                    returnUrl: `${window.location.origin}/success.html`
+                    plan: 'monthly'
                 })
             });
             
@@ -223,7 +222,7 @@ const API = {
             return { 
                 success: true, 
                 paymentUrl: data.paymentUrl,
-                transactionId: data.transactionId
+                orderId: data.orderId
             };
         } catch (error) {
             console.error('Payment creation error:', error);
@@ -235,15 +234,15 @@ const API = {
      * Verify payment completion
      * @param {string} transactionId - Payment transaction ID
      */
-    async verifyPayment(transactionId) {
+    async verifyPayment(orderId) {
         try {
-            const response = await fetch(`${this.serverUrl}/api/payment/verify`, {
+            const response = await fetch(`${this.serverUrl}/api/activate-order`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    transactionId: transactionId
+                    orderId: orderId
                 })
             });
             

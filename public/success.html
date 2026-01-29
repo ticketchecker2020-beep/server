@@ -101,16 +101,16 @@
             
             // Get URL parameters (from PayBox callback)
             const urlParams = new URLSearchParams(window.location.search);
-            const transactionId = urlParams.get('transaction_id') || urlParams.get('transactionId');
+            const orderId = urlParams.get('order') || urlParams.get('order_id');
             const status = urlParams.get('status');
             
             // Also check localStorage for pending payment
             const pendingPayment = JSON.parse(localStorage.getItem('pendingPayment') || '{}');
             
             try {
-                if (status === 'success' || transactionId) {
+                if (status === 'success' || orderId) {
                     // Verify payment with server
-                    const result = await API.verifyPayment(transactionId || pendingPayment.transactionId);
+                    const result = await API.verifyPayment(orderId || pendingPayment.orderId);
                     
                     if (result.success) {
                         // Show success
@@ -150,8 +150,8 @@
                         : 'התשלום נכשל';
                 } else {
                     // No status - check if we have pending payment info
-                    if (pendingPayment.transactionId) {
-                        const result = await API.verifyPayment(pendingPayment.transactionId);
+                    if (pendingPayment.orderId) {
+                        const result = await API.verifyPayment(pendingPayment.orderId);
                         
                         if (result.success) {
                             loadingCard.classList.add('hidden');
