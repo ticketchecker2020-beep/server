@@ -15,10 +15,50 @@
     };
     
     /**
+     * Show beta notice (only once)
+     */
+    function showBetaNotice() {
+        const betaShown = localStorage.getItem('betaNoticeShown');
+        if (betaShown) return;
+        
+        const notice = document.createElement('div');
+        notice.id = 'betaNotice';
+        notice.innerHTML = `
+            <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 10000; display: flex; align-items: center; justify-content: center; padding: 20px;">
+                <div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border: 2px solid #ffd700; border-radius: 20px; padding: 30px; max-width: 500px; text-align: center; color: white;">
+                    <h2 style="color: #ffd700; margin-bottom: 20px;">🚧 האתר בהרצה!</h2>
+                    <p style="font-size: 16px; line-height: 1.6; margin-bottom: 15px;">
+                        שלום וברוכים הבאים! 👋
+                    </p>
+                    <p style="font-size: 14px; line-height: 1.6; margin-bottom: 15px; color: #ccc;">
+                        האתר נמצא כרגע בשלב בדיקות (Beta).<br>
+                        ייתכנו באגים או שינויים בתכונות.
+                    </p>
+                    <p style="font-size: 14px; line-height: 1.6; margin-bottom: 20px; color: #ccc;">
+                        נשמח לקבל משוב! 💬
+                    </p>
+                    <button id="closeBetaNotice" style="background: #ffd700; color: #000; border: none; padding: 12px 30px; border-radius: 25px; font-size: 16px; font-weight: bold; cursor: pointer;">
+                        הבנתי, בואו נתחיל! 🎟️
+                    </button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(notice);
+        
+        document.getElementById('closeBetaNotice').addEventListener('click', () => {
+            localStorage.setItem('betaNoticeShown', 'true');
+            notice.remove();
+        });
+    }
+    
+    /**
      * Initialize the application
      */
     async function init() {
         console.log('🎫 Beitar Ticket Monitor - Website v1.0.0');
+        
+        // Show beta notice (only first time)
+        showBetaNotice();
         
         // Load saved user email
         state.userEmail = localStorage.getItem('userEmail');

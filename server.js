@@ -1373,6 +1373,46 @@ app.post('/api/subscriber/add-game', async (req, res) => {
   }
 });
 
+// Unsubscribe from game (remove game from monitored list)
+app.post('/api/subscriber/remove-game', async (req, res) => {
+  const { email, gameId } = req.body;
+  
+  if (!email || !gameId) {
+    return res.status(400).json({ error: 'Email and gameId required' });
+  }
+  
+  try {
+    // Find subscriber by email
+    const existing = userManager.findUserByEmail(data, email);
+    
+    if (!existing) {
+      return res.status(404).json({ error: 'Subscriber not found' });
+    }
+    
+    const subscriber = existing.user;
+    
+    if (!subscriber.monitoredGames || subscriber.monitoredGames.length === 0) {
+      return res.json({ success: true, message: 'No games to remove' });
+    }
+    
+    // Remove the game
+    const originalCount = subscriber.monitoredGames.length;
+    subscriber.monitoredGames = subscriber.monitoredGames.filter(g => g.id !== gameId);
+    
+    if (subscriber.monitoredGames.length === originalCount) {
+      return res.json({ success: true, message: 'Game was not in list' });
+    }
+    
+    await saveData();
+    log.info('website', `Game removed: ${email} stopped following ${gameId}`);
+    
+    res.json({ success: true, message: 'Game removed from monitoring' });
+  } catch (error) {
+    log.error('website', `Remove game error: ${error.message}`);
+    res.status(500).json({ error: 'Failed to remove game' });
+  }
+});
+
 // Send welcome email for new web users
 async function sendWelcomeEmailForWebUser(email, gameName) {
   try {

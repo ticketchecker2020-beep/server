@@ -195,6 +195,37 @@ const API = {
     },
     
     /**
+     * Unsubscribe from a game
+     * @param {string} email - User email
+     * @param {string} gameId - Game ID
+     */
+    async unsubscribeFromGame(email, gameId) {
+        try {
+            const response = await fetch(`${this.serverUrl}/api/subscriber/remove-game`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    email: email,
+                    gameId: gameId
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (!response.ok) {
+                return { success: false, error: data.error || 'שגיאה בביטול מעקב' };
+            }
+            
+            return { success: true, data: data };
+        } catch (error) {
+            console.error('Unsubscribe error:', error);
+            return { success: false, error: 'שגיאה בחיבור לשרת' };
+        }
+    },
+    
+    /**
      * Create payment session for SMS upgrade
      * @param {string} email - User email
      * @param {string} phone - User phone

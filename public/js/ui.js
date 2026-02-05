@@ -165,6 +165,7 @@ const UI = {
      * Attach click listeners to follow buttons
      */
     attachFollowButtonListeners() {
+        // Follow buttons (not yet following)
         document.querySelectorAll('.follow-btn').forEach(btn => {
             btn.addEventListener('click', async (e) => {
                 const gameId = btn.getAttribute('data-game-id');
@@ -182,8 +183,9 @@ const UI = {
                         const result = await API.subscribeToGame(savedEmail, gameId, gameName);
                         if (result.success) {
                             btn.innerHTML = '<span>✅</span><span>עוקב</span>';
-                            btn.classList.remove('btn-outline');
+                            btn.classList.remove('btn-outline', 'follow-btn');
                             btn.classList.add('btn-success', 'following-btn');
+                            btn.disabled = false; // Re-enable for unfollow
                             this.showToast(`נרשמתם לקבלת התראות על ${gameName}! 🎉`, 'success');
                         } else {
                             btn.innerHTML = originalHtml;
@@ -198,6 +200,44 @@ const UI = {
                 } else {
                     // No saved email - show modal
                     this.openFollowModal(gameId, gameName);
+                }
+            });
+        });
+        
+        // Following buttons (already following - click to unfollow)
+        document.querySelectorAll('.following-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const gameId = btn.getAttribute('data-game-id');
+                const savedEmail = localStorage.getItem('userEmail');
+                
+                if (!savedEmail) return;
+                
+                // Confirm unfollow
+                if (!confirm('להפסיק לעקוב אחרי המשחק הזה?')) return;
+                
+                const originalHtml = btn.innerHTML;
+                btn.innerHTML = '<span>⏳</span><span>מבטל...</span>';
+                btn.disabled = true;
+                
+                try {
+                    const result = await API.unsubscribeFromGame(savedEmail, gameId);
+                    if (result.success) {
+                        btn.innerHTML = '<span>🔔</span><span>עקוב</span>';
+                        btn.classList.remove('btn-success', 'following-btn');
+                        btn.classList.add('btn-outline', 'follow-btn');
+                        btn.disabled = false;
+                        this.showToast('הפסקתם לעקוב אחרי המשחק', 'info');
+                        // Reload to rebind events
+                        if (window.refreshGames) window.refreshGames();
+                    } else {
+                        btn.innerHTML = originalHtml;
+                        btn.disabled = false;
+                        this.showToast(result.error || 'שגיאה בביטול', 'error');
+                    }
+                } catch (error) {
+                    btn.innerHTML = originalHtml;
+                    btn.disabled = false;
+                    this.showToast('שגיאה בחיבור לשרת', 'error');
                 }
             });
         });
