@@ -312,6 +312,25 @@
                         hint.textContent = '✓ הקופון הופעל בהצלחה!';
                         hint.style.color = 'var(--success)';
                         UI.showToast('הקופון הופעל! כעת תקבלו התראות SMS', 'success');
+
+                        // Save user info for future use
+                        if (email) localStorage.setItem('userEmail', email);
+                        if (phone) localStorage.setItem('userPhone', phone);
+                        if (result.licenseKey) localStorage.setItem('licenseKey', result.licenseKey);
+
+                        // Auto-follow pending game (if exists)
+                        const pendingGameFollow = JSON.parse(localStorage.getItem('pendingGameFollow') || 'null');
+                        if (pendingGameFollow && pendingGameFollow.gameId) {
+                            try {
+                                const followResult = await API.subscribeToGame(email, pendingGameFollow.gameId, pendingGameFollow.gameName);
+                                if (followResult.success) {
+                                    localStorage.removeItem('pendingGameFollow');
+                                    UI.showToast(`נרשמתם לקבלת התראות על ${pendingGameFollow.gameName}! 🎉`, 'success');
+                                }
+                            } catch (followError) {
+                                console.error('Auto follow after coupon failed:', followError);
+                            }
+                        }
                     } else {
                         hint.textContent = result.error || 'קופון לא תקין';
                         hint.style.color = 'var(--danger)';

@@ -107,6 +107,28 @@
             // Also check localStorage for pending payment
             const pendingPayment = JSON.parse(localStorage.getItem('pendingPayment') || '{}');
             
+            async function finalizeActivation(resultData) {
+                const email = resultData.email || pendingPayment.email;
+                const phone = resultData.phone || pendingPayment.phone;
+                const licenseKey = resultData.licenseKey;
+
+                if (email) localStorage.setItem('userEmail', email);
+                if (phone) localStorage.setItem('userPhone', phone);
+                if (licenseKey) localStorage.setItem('licenseKey', licenseKey);
+
+                const pendingGameFollow = JSON.parse(localStorage.getItem('pendingGameFollow') || 'null');
+                if (pendingGameFollow && pendingGameFollow.gameId && email) {
+                    try {
+                        const followResult = await API.subscribeToGame(email, pendingGameFollow.gameId, pendingGameFollow.gameName);
+                        if (followResult.success) {
+                            localStorage.removeItem('pendingGameFollow');
+                        }
+                    } catch (followError) {
+                        console.error('Auto follow after payment failed:', followError);
+                    }
+                }
+            }
+            
             try {
                 if (status === 'success' || orderId) {
                     // Verify payment with server
@@ -136,6 +158,8 @@
                                 <span class="success-detail-value">עד סוף העונה</span>
                             </div>
                         `;
+                        
+                        await finalizeActivation(result);
                         
                         // Clear pending payment
                         localStorage.removeItem('pendingPayment');
@@ -171,6 +195,8 @@
                                     <span class="success-detail-value" style="font-size: 0.8rem;">${result.licenseKey || 'יישלח באימייל'}</span>
                                 </div>
                             `;
+                            
+                            await finalizeActivation(result);
                             
                             localStorage.removeItem('pendingPayment');
                         } else {

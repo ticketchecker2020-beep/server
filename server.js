@@ -3612,6 +3612,7 @@ app.post('/api/coupon/activate', async (req, res) => {
   const planConfig = PRICING[plan] || PRICING.yearly;
   const licenseKey = generateLicenseKey();
   const expiresAt = new Date();
+  const normalizedPhone = phone ? userManager.normalizePhone(phone) : null;
   expiresAt.setDate(expiresAt.getDate() + planConfig.days);
   
   data.licenses[licenseKey] = {
@@ -3619,7 +3620,7 @@ app.post('/api/coupon/activate', async (req, res) => {
     userName: email.split('@')[0],
     plan: plan,
     userEmail: email,
-    userPhone: phone || null,
+    userPhone: normalizedPhone,
     active: true,
     createdAt: new Date().toISOString(),
     expiresAt: expiresAt.toISOString(),
@@ -3665,6 +3666,12 @@ app.post('/api/coupon/activate', async (req, res) => {
     await sendEmail(email, '🎟️ הרישיון שלך הופעל - בית"ר ירושלים', emailHtml);
   } catch (e) {
     console.error('Failed to send welcome email:', e);
+  }
+
+  // Send welcome SMS (if configured)
+  if (normalizedPhone && process.env.SMS019_TOKEN && process.env.SMS019_USERNAME) {
+    const smsMsg = `✅ שירות ה-SMS הופעל בהצלחה!\nמפתח הרישיון: ${licenseKey}`;
+    sendSMS(normalizedPhone, smsMsg).catch(err => console.log('Welcome SMS failed:', err.message));
   }
   
   res.json({
