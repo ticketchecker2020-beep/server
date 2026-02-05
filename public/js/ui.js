@@ -166,10 +166,39 @@ const UI = {
      */
     attachFollowButtonListeners() {
         document.querySelectorAll('.follow-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
+            btn.addEventListener('click', async (e) => {
                 const gameId = btn.getAttribute('data-game-id');
                 const gameName = btn.getAttribute('data-game-name');
-                this.openFollowModal(gameId, gameName);
+                
+                // Check if email is already saved - auto-subscribe without modal
+                const savedEmail = localStorage.getItem('userEmail');
+                if (savedEmail) {
+                    // Show loading on button
+                    const originalHtml = btn.innerHTML;
+                    btn.innerHTML = '<span>⏳</span><span>רושם...</span>';
+                    btn.disabled = true;
+                    
+                    try {
+                        const result = await API.subscribeToGame(savedEmail, gameId, gameName);
+                        if (result.success) {
+                            btn.innerHTML = '<span>✅</span><span>עוקב</span>';
+                            btn.classList.remove('btn-outline');
+                            btn.classList.add('btn-success', 'following-btn');
+                            this.showToast(`נרשמתם לקבלת התראות על ${gameName}! 🎉`, 'success');
+                        } else {
+                            btn.innerHTML = originalHtml;
+                            btn.disabled = false;
+                            this.showToast(result.error || 'שגיאה בהרשמה', 'error');
+                        }
+                    } catch (error) {
+                        btn.innerHTML = originalHtml;
+                        btn.disabled = false;
+                        this.showToast('שגיאה בחיבור לשרת', 'error');
+                    }
+                } else {
+                    // No saved email - show modal
+                    this.openFollowModal(gameId, gameName);
+                }
             });
         });
     },
