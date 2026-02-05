@@ -844,7 +844,9 @@
       Object.entries(subscribers).forEach(([userId, sub]) => {
         if (sub.monitoredGames && sub.monitoredGames.length > 0) {
           sub.monitoredGames.forEach(game => {
-            games.push({ ...game, subscriber: userId });
+            // Use email instead of userId for display
+            const displayEmail = sub.email || (sub.emails && sub.emails[0]) || userId;
+            games.push({ ...game, subscriber: displayEmail, subscriberId: userId });
           });
         }
       });
@@ -863,16 +865,16 @@
         const addedDate = game.addedAt ? new Date(game.addedAt).toLocaleDateString('he-IL') : '-';
         const hasTickets = game.hasTickets ? '✅ זמין' : '⏳ ממתין';
         const gameId = game.id || '';
-        const subscriberEmail = game.subscriber || '';
-        
+        const subscriberId = game.subscriberId || '';
+
         return `
           <tr>
             <td>${escapeHtml(game.name || game.opponent || '-')}</td>
-            <td style="direction: ltr; text-align: right;">${subscriberEmail}</td>
+            <td style="direction: ltr; text-align: right;">${escapeHtml(game.subscriber)}</td>
             <td>${addedDate}</td>
             <td>${hasTickets}</td>
             <td>
-              <button class="btn btn-sm btn-danger" onclick="removeGameFromSubscriber('${escapeHtml(subscriberEmail)}', '${escapeHtml(gameId)}')">🗑️ הסר</button>
+              <button class="btn btn-sm btn-danger" onclick="removeGameFromSubscriber('${escapeHtml(subscriberId)}', '${escapeHtml(gameId)}')">🗑️ הסר</button>
             </td>
           </tr>
         `;
