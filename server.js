@@ -1287,16 +1287,16 @@ app.get('/api/subscriber/games', (req, res) => {
     return res.status(400).json({ error: 'Email or phone required' });
   }
   
-  // Use userManager to find subscriber
-  const subscriber = userManager.findExistingUser(data, email, phone);
+  // Use userManager to find subscriber (returns { id, user } or null)
+  const existing = userManager.findExistingUser(data, email, phone);
   
-  if (!subscriber) {
+  if (!existing) {
     return res.json({ success: true, games: [] });
   }
   
   res.json({ 
     success: true,
-    games: subscriber.monitoredGames || [] 
+    games: existing.user.monitoredGames || [] 
   });
 });
 
