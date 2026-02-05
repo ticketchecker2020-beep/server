@@ -882,11 +882,12 @@
     // Load games for simulation dropdown
     async function loadGamesForSimulation() {
       try {
-        const res = await apiCall('/api/games');
+        const res = await apiCall('/api/games/proxy');
         const select = document.getElementById('simulateGameId');
-        if (res.games && res.games.length > 0) {
+        const games = res.events || res.games || [];
+        if (games.length > 0) {
           select.innerHTML = '<option value="">-- בחר משחק --</option>' + 
-            res.games.map(g => `<option value="${escapeHtml(g.id)}">${escapeHtml(g.opponent)} (${g.date || 'ללא תאריך'})</option>`).join('');
+            games.map(g => `<option value="${escapeHtml(g.id)}">${escapeHtml(g.opponent || g.name)} (${g.date || 'ללא תאריך'})</option>`).join('');
         } else {
           select.innerHTML = '<option value="">אין משחקים זמינים</option>';
         }
