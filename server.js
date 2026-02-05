@@ -11,6 +11,9 @@ const nodemailer = require('nodemailer');
 const fs = require('fs');
 const path = require('path');
 
+// User management module
+const userManager = require('./userManager');
+
 // Upstash Redis for persistent storage (survives deploys!)
 let redis = null;
 if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
@@ -355,7 +358,7 @@ setInterval(checkLicenseExpiry, 6 * 60 * 60 * 1000);
 function authenticateApiKey(req, res, next) {
   // Skip auth for public endpoints and admin (admin has its own password check)
   // Note: req.path here is relative to /api, so /api/test-email becomes /test-email
-  const publicPaths = ['/health', '/pricing', '/register', '/coupon/validate', '/coupon/activate', '/license/validate', '/license/by-email', '/admin', '/create-pending-order', '/webhook', '/add-game', '/remove-game', '/games', '/test-email', '/test-sms', '/activate-order', '/notify', '/subscriber'];
+  const publicPaths = ['/health', '/pricing', '/register', '/coupon/validate', '/coupon/activate', '/license/validate', '/license/by-email', '/admin', '/create-pending-order', '/webhook', '/add-game', '/remove-game', '/games', '/test-email', '/test-sms', '/activate-order', '/notify', '/subscriber', '/subscription-status'];
   if (publicPaths.some(p => req.path === p || req.path.startsWith(p))) {
     return next();
   }
@@ -812,23 +815,34 @@ app.post('/api/unregister', async (req, res) => {
   }
 });
 
-// Get subscription status
+// Get subscription status - uses unified user lookup
 app.get('/api/subscription-status', (req, res) => {
-  const { email } = req.query;
-  const subscriberId = email?.toLowerCase();
+  const { email, phone } = req.query;
   
-  if (!subscriberId) {
-    return res.status(400).json({ error: 'Email required' });
+  if (!email && !phone) {
+    return res.status(400).json({ error: 'Email or phone required' });
   }
 
-  const subscriber = data.subscribers[subscriberId];
+  // Use unified lookup
+  const existing = userManager.findExistingUser(data, email, phone);
   
-  if (subscriber && subscriber.active) {
+  if (existing) {
+    const subscriber = existing.user;
+    const planInfo = userManager.getUserPlan(data, email, phone);
+    
     res.json({
       registered: true,
-      emails: subscriber.emails,
-      smsEnabled: subscriber.smsEnabled,
-      registeredAt: subscriber.registeredAt,
+      subscriberId: existing.id,
+      email: subscriber.email || (subscriber.emails?.[0]),
+      emails: subscriber.emails || [subscriber.email],
+      phone: subscriber.phone,
+      smsEnabled: planInfo.smsEnabled,
+      plan: planInfo.plan,
+      isVip: planInfo.isVip,
+      smsLimit: planInfo.smsLimit,
+      smsUsed: planInfo.smsUsed,
+      monitoredGames: subscriber.monitoredGames || [],
+      registeredAt: subscriber.registeredAt || subscriber.createdAt,
       lastNotified: subscriber.lastNotified
     });
   } else {
@@ -1267,28 +1281,43 @@ function isSubscriptionOrNonGame(name) {
 
 // Subscribe to game from website (email only, no license required)
 app.post('/api/subscriber/add-game', async (req, res) => {
-  const { email, gameId, gameName, source } = req.body;
+  const { email, phone, gameId, gameName, source } = req.body;
   
   if (!email || !gameId) {
     return res.status(400).json({ error: 'Email and gameId required' });
   }
   
   try {
-    // Find or create subscriber by email
-    let subscriberId = Object.keys(data.subscribers || {}).find(
-      id => data.subscribers[id].email?.toLowerCase() === email.toLowerCase()
-    );
+    // Use userManager to find existing user (checks both email formats + phone)
+    const existing = userManager.findExistingUser(data, email, phone);
+    let subscriberId;
+    let isNewUser = false;
     
-    if (!subscriberId) {
-      // Create new subscriber
-      subscriberId = `web-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    if (existing) {
+      // Found existing user
+      subscriberId = existing.id;
+      log.info('website', `Found existing user: ${subscriberId} for ${email}`);
+    } else {
+      // Create new subscriber with email as ID (cleaner than web-xxxxx)
+      subscriberId = email.toLowerCase();
       data.subscribers = data.subscribers || {};
+      
+      // Get user plan info (checks if they have a license)
+      const planInfo = userManager.getUserPlan(data, email, phone);
+      
       data.subscribers[subscriberId] = {
-        email: email,
+        email: email.toLowerCase(),
+        emails: [email.toLowerCase()], // Support both formats
+        phone: phone ? userManager.normalizePhone(phone) : null,
         createdAt: new Date().toISOString(),
         source: source || 'website',
-        monitoredGames: []
+        monitoredGames: [],
+        smsEnabled: planInfo.smsEnabled,
+        plan: planInfo.plan,
+        vip: planInfo.isVip
       };
+      isNewUser = true;
+      log.info('website', `Created new user: ${subscriberId}`);
     }
     
     const subscriber = data.subscribers[subscriberId];
@@ -1296,7 +1325,7 @@ app.post('/api/subscriber/add-game', async (req, res) => {
     
     // Check if game already monitored
     if (subscriber.monitoredGames.some(g => g.id === gameId)) {
-      return res.json({ success: true, message: 'Game already monitored', subscriberId });
+      return res.json({ success: true, message: 'Game already monitored', subscriberId, isNewUser: false });
     }
     
     // Add game
@@ -1309,14 +1338,53 @@ app.post('/api/subscriber/add-game', async (req, res) => {
     });
     
     await saveData();
-    log.info('website', `New game subscription: ${email} -> ${gameName}`);
+    log.info('website', `Game subscription: ${email} -> ${gameName}`);
     
-    res.json({ success: true, message: 'Subscribed to game', subscriberId });
+    // Send welcome email for new users
+    if (isNewUser) {
+      sendWelcomeEmailForWebUser(email, gameName);
+    }
+    
+    res.json({ success: true, message: 'Subscribed to game', subscriberId, isNewUser });
   } catch (error) {
     log.error('website', `Add game error: ${error.message}`);
     res.status(500).json({ error: 'Failed to add game subscription' });
   }
 });
+
+// Send welcome email for new web users
+async function sendWelcomeEmailForWebUser(email, gameName) {
+  try {
+    const welcomeHtml = `
+      <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: white; padding: 30px; border-radius: 15px;">
+        <h1 style="color: #ffd700; text-align: center;">🎟️ ברוך הבא לבית"ר!</h1>
+        <p style="font-size: 18px; text-align: center;">נרשמת בהצלחה לקבלת התראות על כרטיסים!</p>
+        
+        <div style="background: rgba(255,215,0,0.1); border: 1px solid #ffd700; border-radius: 10px; padding: 15px; margin: 20px 0;">
+          <p style="margin: 0;">⚽ <strong>משחק ראשון במעקב:</strong> ${gameName}</p>
+        </div>
+        
+        <p>תקבל התראה במייל ברגע שיהיו כרטיסים זמינים!</p>
+        
+        <hr style="border: 1px solid #333; margin: 20px 0;">
+        
+        <p style="font-size: 14px; color: #888;">
+          💡 <strong>טיפ:</strong> רוצה לקבל גם SMS? 
+          <a href="https://server-tickets-l0rq.onrender.com" style="color: #ffd700;">היכנס לאתר</a> והוסף מספר טלפון
+        </p>
+        
+        <p style="text-align: center; color: #ffd700; font-size: 16px; margin-top: 20px;">
+          💛🖤 צהוב זה הצבע!
+        </p>
+      </div>
+    `;
+    
+    await sendEmail(email, '🎟️ ברוך הבא! נרשמת להתראות כרטיסים - בית"ר ירושלים', welcomeHtml);
+    log.success('email', `Welcome email sent to ${email}`);
+  } catch (error) {
+    log.error('email', `Failed to send welcome email to ${email}: ${error.message}`);
+  }
+}
 
 // Get subscriber's monitored games
 app.get('/api/games/:subscriberId', async (req, res) => {
