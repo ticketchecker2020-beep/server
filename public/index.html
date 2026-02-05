@@ -24,6 +24,10 @@
                 </div>
             </div>
             <div class="header-actions">
+                <button class="btn btn-outline btn-sm" id="manageEmailsBtn" style="display: none;">
+                    <span>✉️</span>
+                    <span>ניהול מיילים</span>
+                </button>
                 <a href="pricing.html" class="btn btn-primary btn-sm">
                     <span>💬</span>
                     <span>SMS התראות</span>
@@ -80,16 +84,16 @@
                 <!-- Email Form -->
                 <form id="followForm">
                     <div class="form-group">
-                        <label class="form-label" for="emailInput">כתובת אימייל</label>
+                        <label class="form-label" for="emailInput">כתובות אימייל להתראות</label>
                         <input 
-                            type="email" 
+                            type="text" 
                             id="emailInput" 
                             class="form-input" 
                             placeholder="your@email.com"
                             required
                             autocomplete="email"
                         >
-                        <p class="form-hint">נשלח לכם התראה באימייל כשיהיו כרטיסים</p>
+                        <p class="form-hint">💡 אפשר להוסיף כמה מיילים מופרדים בפסיק</p>
                     </div>
                     
                     <div class="form-group" id="errorContainer" style="display: none;">
@@ -109,6 +113,40 @@
                     <span>💬</span>
                     <span>שדרוג ל-SMS - לא מפספסים!</span>
                 </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Manage Emails Modal -->
+    <div class="modal-overlay" id="emailsModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">✉️ ניהול כתובות אימייל</h3>
+                <button class="modal-close" id="closeEmailsModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="color: #ccc; margin-bottom: 15px;">התראות ישלחו לכל הכתובות ברשימה:</p>
+                
+                <div id="emailsList" style="margin-bottom: 20px;">
+                    <!-- Will be filled dynamically -->
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label" for="newEmailInput">הוסף כתובת אימייל חדשה</label>
+                    <div style="display: flex; gap: 10px;">
+                        <input 
+                            type="email" 
+                            id="newEmailInput" 
+                            class="form-input" 
+                            placeholder="another@email.com"
+                            style="flex: 1;"
+                        >
+                        <button class="btn btn-primary" id="addEmailBtn">הוסף</button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline btn-block" id="closeEmailsModalBtn">סגור</button>
             </div>
         </div>
     </div>

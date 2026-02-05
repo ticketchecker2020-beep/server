@@ -133,6 +133,7 @@
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
                 UI.closeFollowModal();
+                closeEmailsModal();
             }
         });
         
@@ -157,7 +158,149 @@
                 }
             });
         }
+        
+        // Manage emails button
+        const manageEmailsBtn = document.getElementById('manageEmailsBtn');
+        if (manageEmailsBtn) {
+            manageEmailsBtn.addEventListener('click', openEmailsModal);
+        }
+        
+        // Close emails modal
+        const closeEmailsModalBtns = [
+            document.getElementById('closeEmailsModal'),
+            document.getElementById('closeEmailsModalBtn')
+        ];
+        closeEmailsModalBtns.forEach(btn => {
+            if (btn) btn.addEventListener('click', closeEmailsModal);
+        });
+        
+        // Emails modal overlay click
+        const emailsModalOverlay = document.getElementById('emailsModal');
+        if (emailsModalOverlay) {
+            emailsModalOverlay.addEventListener('click', (e) => {
+                if (e.target === emailsModalOverlay) closeEmailsModal();
+            });
+        }
+        
+        // Add email button
+        const addEmailBtn = document.getElementById('addEmailBtn');
+        if (addEmailBtn) {
+            addEmailBtn.addEventListener('click', addNewEmail);
+        }
+        
+        // Show manage emails button if user is logged in
+        if (state.userEmail) {
+            showManageEmailsButton();
+        }
     }
+    
+    /**
+     * Show manage emails button
+     */
+    function showManageEmailsButton() {
+        const btn = document.getElementById('manageEmailsBtn');
+        if (btn) btn.style.display = 'flex';
+    }
+    
+    /**
+     * Open emails management modal
+     */
+    async function openEmailsModal() {
+        const modal = document.getElementById('emailsModal');
+        const emailsList = document.getElementById('emailsList');
+        
+        emailsList.innerHTML = '<p style="color: #888;">טוען...</p>';
+        modal.classList.add('active');
+        
+        try {
+            const result = await API.getUserEmails(state.userEmail);
+            if (result.success && result.emails) {
+                renderEmailsList(result.emails);
+            } else {
+                // Fallback to single email
+                renderEmailsList([state.userEmail]);
+            }
+        } catch (error) {
+            renderEmailsList([state.userEmail]);
+        }
+    }
+    
+    /**
+     * Close emails modal
+     */
+    function closeEmailsModal() {
+        const modal = document.getElementById('emailsModal');
+        if (modal) modal.classList.remove('active');
+    }
+    
+    /**
+     * Render emails list
+     */
+    function renderEmailsList(emails) {
+        const container = document.getElementById('emailsList');
+        if (!emails || emails.length === 0) {
+            container.innerHTML = '<p style="color: #888;">אין כתובות אימייל</p>';
+            return;
+        }
+        
+        container.innerHTML = emails.map((email, index) => `
+            <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px; background: #222; border-radius: 8px; margin-bottom: 8px;">
+                <span style="color: #fff;">${UI.escapeHtml(email)}</span>
+                ${index === 0 ? '<span style="color: #ffd700; font-size: 0.8em;">ראשי</span>' : 
+                    `<button class="btn btn-sm btn-danger" onclick="window.removeEmail('${UI.escapeHtml(email)}')">הסר</button>`}
+            </div>
+        `).join('');
+    }
+    
+    /**
+     * Add new email
+     */
+    async function addNewEmail() {
+        const input = document.getElementById('newEmailInput');
+        const email = input.value.trim().toLowerCase();
+        
+        if (!email) {
+            UI.showToast('נא להזין כתובת אימייל', 'error');
+            return;
+        }
+        
+        if (!UI.isValidEmail(email)) {
+            UI.showToast('כתובת אימייל לא תקינה', 'error');
+            return;
+        }
+        
+        try {
+            const result = await API.addEmailToSubscriber(state.userEmail, email);
+            if (result.success) {
+                UI.showToast('הכתובת נוספה בהצלחה! 📧', 'success');
+                input.value = '';
+                openEmailsModal(); // Refresh list
+            } else {
+                UI.showToast(result.error || 'שגיאה בהוספה', 'error');
+            }
+        } catch (error) {
+            UI.showToast('שגיאה בחיבור לשרת', 'error');
+        }
+    }
+    
+    /**
+     * Remove email (exposed globally)
+     */
+    window.removeEmail = async function(emailToRemove) {
+        if (!confirm(`להסיר את ${emailToRemove} מרשימת ההתראות?`)) return;
+        
+        try {
+            const result = await API.removeEmailFromSubscriber(state.userEmail, emailToRemove);
+            if (result.success) {
+                UI.showToast('הכתובת הוסרה', 'info');
+                openEmailsModal(); // Refresh list
+            } else {
+                UI.showToast(result.error || 'שגיאה בהסרה', 'error');
+            }
+        } catch (error) {
+            UI.showToast('שגיאה בחיבור לשרת', 'error');
+        }
+    };
     
     /**
      * Load games from API
@@ -189,19 +332,24 @@
         const emailInput = document.getElementById('emailInput');
         const submitBtn = document.getElementById('submitFollow');
         
-        const email = emailInput.value.trim();
+        const emailRaw = emailInput.value.trim();
         const gameId = modal.getAttribute('data-game-id');
         const gameName = modal.getAttribute('data-game-name');
         
-        // Validate email
-        if (!email) {
+        // Parse multiple emails (comma separated)
+        const emails = emailRaw.split(',').map(e => e.trim().toLowerCase()).filter(e => e);
+        
+        // Validate at least one email
+        if (emails.length === 0) {
             UI.showFollowError('נא להזין כתובת אימייל');
             emailInput.focus();
             return;
         }
         
-        if (!UI.isValidEmail(email)) {
-            UI.showFollowError('כתובת אימייל לא תקינה');
+        // Validate all emails
+        const invalidEmails = emails.filter(e => !UI.isValidEmail(e));
+        if (invalidEmails.length > 0) {
+            UI.showFollowError(`כתובת אימייל לא תקינה: ${invalidEmails[0]}`);
             emailInput.focus();
             return;
         }
@@ -213,12 +361,24 @@
         UI.setButtonLoading(submitBtn, true);
         
         try {
-            const result = await API.subscribeToGame(email, gameId, gameName);
+            // Use first email as primary
+            const primaryEmail = emails[0];
+            const result = await API.subscribeToGame(primaryEmail, gameId, gameName);
             
             if (result.success) {
-                // Save email for future use
-                localStorage.setItem('userEmail', email);
-                state.userEmail = email;
+                // Save primary email for future use
+                localStorage.setItem('userEmail', primaryEmail);
+                state.userEmail = primaryEmail;
+                
+                // Show manage emails button
+                showManageEmailsButton();
+                
+                // Add additional emails if any
+                if (emails.length > 1) {
+                    for (let i = 1; i < emails.length; i++) {
+                        await API.addEmailToSubscriber(primaryEmail, emails[i]);
+                    }
+                }
                 
                 // Add game to followed games
                 if (!state.followedGames.includes(gameId)) {
@@ -229,7 +389,8 @@
                 UI.closeFollowModal();
                 
                 // Show success toast
-                UI.showToast(`נרשמתם לקבלת התראות על ${gameName}! 🎉`, 'success');
+                const emailsMsg = emails.length > 1 ? ` (${emails.length} כתובות)` : '';
+                UI.showToast(`נרשמתם לקבלת התראות על ${gameName}!${emailsMsg} 🎉`, 'success');
                 
                 // Update button state if game card exists
                 const gameCard = document.querySelector(`[data-game-id="${gameId}"]`);

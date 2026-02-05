@@ -1300,6 +1300,96 @@ app.get('/api/subscriber/games', (req, res) => {
   });
 });
 
+// Get subscriber's email addresses
+app.get('/api/subscriber/emails', (req, res) => {
+  const { email } = req.query;
+  
+  if (!email) {
+    return res.status(400).json({ error: 'Email required' });
+  }
+  
+  const existing = userManager.findUserByEmail(data, email);
+  
+  if (!existing) {
+    return res.json({ success: true, emails: [email] });
+  }
+  
+  const subscriber = existing.user;
+  const emails = subscriber.emails || [subscriber.email];
+  
+  res.json({ success: true, emails });
+});
+
+// Add email to subscriber
+app.post('/api/subscriber/add-email', async (req, res) => {
+  const { email, newEmail } = req.body;
+  
+  if (!email || !newEmail) {
+    return res.status(400).json({ error: 'Email and newEmail required' });
+  }
+  
+  const newEmailLower = newEmail.toLowerCase().trim();
+  
+  // Validate email format
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(newEmailLower)) {
+    return res.status(400).json({ error: 'כתובת אימייל לא תקינה' });
+  }
+  
+  const existing = userManager.findUserByEmail(data, email);
+  
+  if (!existing) {
+    return res.status(404).json({ error: 'Subscriber not found' });
+  }
+  
+  const subscriber = existing.user;
+  subscriber.emails = subscriber.emails || [subscriber.email];
+  
+  // Check if already exists
+  if (subscriber.emails.some(e => e.toLowerCase() === newEmailLower)) {
+    return res.status(400).json({ error: 'כתובת זו כבר קיימת ברשימה' });
+  }
+  
+  // Add new email
+  subscriber.emails.push(newEmailLower);
+  await saveData();
+  
+  log.info('website', `Added email ${newEmailLower} to ${existing.id}`);
+  res.json({ success: true, message: 'Email added' });
+});
+
+// Remove email from subscriber
+app.post('/api/subscriber/remove-email', async (req, res) => {
+  const { email, emailToRemove } = req.body;
+  
+  if (!email || !emailToRemove) {
+    return res.status(400).json({ error: 'Email and emailToRemove required' });
+  }
+  
+  const existing = userManager.findUserByEmail(data, email);
+  
+  if (!existing) {
+    return res.status(404).json({ error: 'Subscriber not found' });
+  }
+  
+  const subscriber = existing.user;
+  subscriber.emails = subscriber.emails || [subscriber.email];
+  
+  const emailToRemoveLower = emailToRemove.toLowerCase().trim();
+  
+  // Can't remove primary email
+  if (subscriber.email?.toLowerCase() === emailToRemoveLower || subscriber.emails.length === 1) {
+    return res.status(400).json({ error: 'לא ניתן להסיר את הכתובת הראשית' });
+  }
+  
+  // Remove email
+  subscriber.emails = subscriber.emails.filter(e => e.toLowerCase() !== emailToRemoveLower);
+  await saveData();
+  
+  log.info('website', `Removed email ${emailToRemoveLower} from ${existing.id}`);
+  res.json({ success: true, message: 'Email removed' });
+});
+
 // Subscribe to game from website (email only, no license required)
 app.post('/api/subscriber/add-game', async (req, res) => {
   const { email, phone, gameId, gameName, source } = req.body;

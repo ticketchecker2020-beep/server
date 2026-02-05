@@ -346,6 +346,76 @@ const API = {
             console.error('Get followed games error:', error);
             return { success: false, error: 'שגיאה בחיבור לשרת' };
         }
+    },
+    
+    /**
+     * Get user's emails
+     * @param {string} email - Primary email
+     */
+    async getUserEmails(email) {
+        try {
+            const response = await fetch(`${this.serverUrl}/api/subscriber/emails?email=${encodeURIComponent(email)}`);
+            
+            if (!response.ok) {
+                return { success: false, error: 'שגיאה בטעינת מיילים' };
+            }
+            
+            const data = await response.json();
+            return { success: true, emails: data.emails || [] };
+        } catch (error) {
+            console.error('Get emails error:', error);
+            return { success: false, error: 'שגיאה בחיבור לשרת' };
+        }
+    },
+    
+    /**
+     * Add email to subscriber
+     * @param {string} primaryEmail - Primary email
+     * @param {string} newEmail - New email to add
+     */
+    async addEmailToSubscriber(primaryEmail, newEmail) {
+        try {
+            const response = await fetch(`${this.serverUrl}/api/subscriber/add-email`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: primaryEmail, newEmail: newEmail })
+            });
+            
+            const data = await response.json();
+            if (!response.ok) {
+                return { success: false, error: data.error || 'שגיאה בהוספה' };
+            }
+            
+            return { success: true };
+        } catch (error) {
+            console.error('Add email error:', error);
+            return { success: false, error: 'שגיאה בחיבור לשרת' };
+        }
+    },
+    
+    /**
+     * Remove email from subscriber
+     * @param {string} primaryEmail - Primary email
+     * @param {string} emailToRemove - Email to remove
+     */
+    async removeEmailFromSubscriber(primaryEmail, emailToRemove) {
+        try {
+            const response = await fetch(`${this.serverUrl}/api/subscriber/remove-email`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: primaryEmail, emailToRemove: emailToRemove })
+            });
+            
+            const data = await response.json();
+            if (!response.ok) {
+                return { success: false, error: data.error || 'שגיאה בהסרה' };
+            }
+            
+            return { success: true };
+        } catch (error) {
+            console.error('Remove email error:', error);
+            return { success: false, error: 'שגיאה בחיבור לשרת' };
+        }
     }
 };
 
