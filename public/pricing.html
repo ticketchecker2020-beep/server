@@ -288,14 +288,25 @@
                     hint.textContent = 'בודק קופון...';
                     hint.style.color = 'var(--text-muted)';
                     
-                    // We need email to activate coupon
-                    const email = prompt('הכניסו את כתובת האימייל שלכם:');
+                    // Try to get email from localStorage first
+                    let email = localStorage.getItem('userEmail');
                     if (!email) {
-                        hint.textContent = '';
+                        email = prompt('הכניסו את כתובת האימייל שלכם:');
+                        if (!email) {
+                            hint.textContent = '';
+                            return;
+                        }
+                    }
+                    
+                    // Ask for phone number (required for SMS)
+                    let phone = prompt('הכניסו מספר טלפון לקבלת SMS:');
+                    if (!phone) {
+                        hint.textContent = 'מספר טלפון נדרש להפעלת SMS';
+                        hint.style.color = 'var(--danger)';
                         return;
                     }
                     
-                    const result = await API.activateCoupon(coupon, email);
+                    const result = await API.activateCoupon(coupon, email, phone);
                     
                     if (result.success) {
                         hint.textContent = '✓ הקופון הופעל בהצלחה!';

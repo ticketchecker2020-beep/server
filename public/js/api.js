@@ -268,8 +268,9 @@ const API = {
      * Activate coupon code
      * @param {string} couponCode - Coupon code
      * @param {string} email - User email
+     * @param {string} phone - User phone (required for SMS)
      */
-    async activateCoupon(couponCode, email) {
+    async activateCoupon(couponCode, email, phone) {
         try {
             const response = await fetch(`${this.serverUrl}/api/coupon/activate`, {
                 method: 'POST',
@@ -278,14 +279,15 @@ const API = {
                 },
                 body: JSON.stringify({
                     code: couponCode,
-                    email: email
+                    email: email,
+                    phone: phone
                 })
             });
             
             const data = await response.json();
             
             if (!response.ok) {
-                return { success: false, error: data.error || 'קופון לא תקין' };
+                return { success: false, error: data.reason || data.error || 'קופון לא תקין' };
             }
             
             return { success: true, licenseKey: data.licenseKey };
