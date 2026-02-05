@@ -1944,6 +1944,115 @@ app.post('/api/admin/enable-sms', async (req, res) => {
   res.json({ success: true, message: `SMS/VIP enabled for ${subscriberId}` });
 });
 
+// Admin: Simulate ticket available - sends notifications to all subscribers following a game
+app.post('/api/admin/simulate-ticket-available', async (req, res) => {
+  const adminPass = req.headers['x-admin-password'] || req.body.adminPassword;
+  if (adminPass !== (process.env.ADMIN_PASSWORD || 'BeitarAdmin123!')) {
+    return res.status(401).json({ error: 'Invalid admin password' });
+  }
+  
+  const { gameId, previewOnly } = req.body;
+  
+  if (!gameId) {
+    return res.status(400).json({ error: 'gameId required' });
+  }
+  
+  // Find the game
+  const game = data.games?.find(g => g.id === gameId);
+  
+  // Find all subscribers following this game
+  const subscribersWithGame = [];
+  for (const [id, subscriber] of Object.entries(data.subscribers || {})) {
+    if (subscriber.monitoredGames?.some(g => g.id === gameId)) {
+      subscribersWithGame.push({
+        id,
+        email: subscriber.email || (subscriber.emails && subscriber.emails[0]),
+        phone: subscriber.phone,
+        smsEnabled: subscriber.smsEnabled || false,
+        vip: subscriber.vip || false
+      });
+    }
+  }
+  
+  log.info('admin', `🎮 Simulation for game ${gameId}: ${subscribersWithGame.length} subscribers`);
+  
+  if (previewOnly) {
+    return res.json({
+      success: true,
+      previewOnly: true,
+      game: game || { id: gameId, opponent: gameId },
+      subscribersCount: subscribersWithGame.length,
+      subscribers: subscribersWithGame
+    });
+  }
+  
+  // Actually send notifications
+  const results = {
+    emailsSent: 0,
+    smsSent: 0,
+    errors: []
+  };
+  
+  const gameName = game?.opponent || game?.name || gameId;
+  const ticketUrl = game?.ticketUrl || 'https://www.bfrj.co.il';
+  
+  for (const sub of subscribersWithGame) {
+    // Send email
+    if (sub.email) {
+      try {
+        const emailHtml = `
+          <!DOCTYPE html>
+          <html dir="rtl" lang="he">
+          <head><meta charset="UTF-8"></head>
+          <body style="font-family: Arial; background: #111; color: #fff; padding: 20px;">
+            <div style="max-width: 500px; margin: 0 auto; background: #1a1a1a; border-radius: 15px; padding: 30px; border: 2px solid #ffd700;">
+              <h1 style="color: #ffd700; text-align: center;">🧪 [סימולציה] 🎟️ כרטיסים זמינים!</h1>
+              <p style="text-align: center; color: #ff9800; font-weight: bold;">זוהי הודעת בדיקה בלבד - לא התראה אמיתית!</p>
+              <p style="text-align: center; color: #ccc;">נמצאו כרטיסים למשחק:</p>
+              
+              <div style="background: #222; padding: 15px; border-radius: 10px; margin: 10px 0; border-right: 3px solid #ffd700;">
+                <div style="color: #fff; font-weight: bold;">⚽ ${gameName}</div>
+                <a href="${ticketUrl}" style="display: inline-block; margin-top: 10px; background: #ffd700; color: #000; padding: 8px 16px; text-decoration: none; border-radius: 20px; font-weight: bold;">לרכישה</a>
+              </div>
+              
+              <p style="text-align: center; margin-top: 30px; color: #888;">
+                💛🖤 צהוב זה הצבע!
+              </p>
+            </div>
+          </body>
+          </html>
+        `;
+        await sendEmail(sub.email, '🧪 [סימולציה] 🎟️ כרטיסים זמינים!', emailHtml);
+        results.emailsSent++;
+        log.info('admin', `📧 Simulation email sent to ${sub.email}`);
+      } catch (e) {
+        results.errors.push(`Email to ${sub.email}: ${e.message}`);
+      }
+    }
+    
+    // Send SMS if VIP
+    if (sub.smsEnabled && sub.phone) {
+      try {
+        await sendSMS(sub.phone, `🧪 [סימולציה]\n🎫 יש כרטיסים ל-${gameName}!\n🔗 ${ticketUrl}\n💛🖤 צהוב זה הצבע!`);
+        results.smsSent++;
+        log.info('admin', `📱 Simulation SMS sent to ${sub.phone}`);
+      } catch (e) {
+        results.errors.push(`SMS to ${sub.phone}: ${e.message}`);
+      }
+    }
+  }
+  
+  log.info('admin', `🎮 Simulation complete: ${results.emailsSent} emails, ${results.smsSent} SMS`);
+  
+  res.json({
+    success: true,
+    game: game || { id: gameId, opponent: gameId },
+    subscribersCount: subscribersWithGame.length,
+    subscribers: subscribersWithGame,
+    results
+  });
+});
+
 // Admin: Delete subscriber
 app.post('/api/admin/delete-subscriber', async (req, res) => {
   const adminPass = req.headers['x-admin-password'] || req.body.adminPassword;

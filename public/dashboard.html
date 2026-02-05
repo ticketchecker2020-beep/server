@@ -429,6 +429,27 @@
     <!-- Test Tab -->
     <div id="tab-test" class="tab-content">
       <div class="section">
+        <h2>🎮 סימולציית פתיחת מכירה</h2>
+        <p style="color: #888; margin-bottom: 15px;">בדיקת כל התהליך: שליחת התראות אימייל ו-SMS לכל העוקבים אחרי משחק</p>
+        <div class="test-box" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border: 2px solid #ffd700;">
+          <h4 style="color: #ffd700;">⚽ בחר משחק לסימולציה</h4>
+          <select id="simulateGameId" style="width: 100%; padding: 12px; border-radius: 8px; background: #222; color: #fff; border: 1px solid #444; margin-bottom: 15px;">
+            <option value="">טוען משחקים...</option>
+          </select>
+          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <button class="btn btn-gold" onclick="simulateTicketAvailable(false)">
+              🚀 סימולציה מלאה (אימייל + SMS)
+            </button>
+            <button class="btn btn-primary" onclick="simulateTicketAvailable(true)">
+              👀 Preview בלבד (ללא שליחה)
+            </button>
+          </div>
+          <div id="simulateResult" style="margin-top: 15px; padding: 15px; background: #111; border-radius: 8px; display: none;">
+          </div>
+        </div>
+      </div>
+      
+      <div class="section">
         <h2>🧪 בדיקת התראות</h2>
         <div class="test-section">
           <div class="test-box">
@@ -856,6 +877,79 @@
           </tr>
         `;
       }).join('');
+    }
+    
+    // Load games for simulation dropdown
+    async function loadGamesForSimulation() {
+      try {
+        const res = await apiCall('/api/games');
+        const select = document.getElementById('simulateGameId');
+        if (res.games && res.games.length > 0) {
+          select.innerHTML = '<option value="">-- בחר משחק --</option>' + 
+            res.games.map(g => `<option value="${escapeHtml(g.id)}">${escapeHtml(g.opponent)} (${g.date || 'ללא תאריך'})</option>`).join('');
+        } else {
+          select.innerHTML = '<option value="">אין משחקים זמינים</option>';
+        }
+      } catch (e) {
+        console.error('Failed to load games:', e);
+      }
+    }
+    
+    // Simulate ticket available
+    async function simulateTicketAvailable(previewOnly) {
+      const gameId = document.getElementById('simulateGameId').value;
+      const resultDiv = document.getElementById('simulateResult');
+      
+      if (!gameId) {
+        alert('נא לבחור משחק');
+        return;
+      }
+      
+      resultDiv.style.display = 'block';
+      resultDiv.innerHTML = '⏳ מבצע סימולציה...';
+      
+      try {
+        const res = await apiCall('/api/admin/simulate-ticket-available', 'POST', { 
+          gameId, 
+          previewOnly,
+          adminPassword 
+        });
+        
+        if (res.success) {
+          let html = `<h4 style="color: #4ade80;">✅ ${previewOnly ? 'Preview' : 'סימולציה בוצעה!'}</h4>`;
+          html += `<p><strong>משחק:</strong> ${escapeHtml(res.game?.opponent || gameId)}</p>`;
+          html += `<p><strong>מנויים שיקבלו התראה:</strong> ${res.subscribersCount || 0}</p>`;
+          
+          if (res.subscribers && res.subscribers.length > 0) {
+            html += '<table style="width: 100%; margin-top: 10px; font-size: 0.9em;"><thead><tr><th>מייל</th><th>SMS</th><th>VIP</th></tr></thead><tbody>';
+            res.subscribers.forEach(sub => {
+              html += `<tr>
+                <td>${escapeHtml(sub.email)}</td>
+                <td>${sub.smsEnabled ? '✅' : '❌'}</td>
+                <td>${sub.vip ? '⭐' : '-'}</td>
+              </tr>`;
+            });
+            html += '</tbody></table>';
+          } else {
+            html += '<p style="color: #ff9800;">⚠️ אין מנויים שעוקבים אחרי המשחק הזה</p>';
+          }
+          
+          if (!previewOnly && res.results) {
+            html += `<hr style="border-color: #333; margin: 15px 0;">`;
+            html += `<p><strong>אימיילים נשלחו:</strong> ${res.results.emailsSent || 0}</p>`;
+            html += `<p><strong>SMS נשלחו:</strong> ${res.results.smsSent || 0}</p>`;
+            if (res.results.errors && res.results.errors.length > 0) {
+              html += `<p style="color: #ff6b6b;"><strong>שגיאות:</strong> ${res.results.errors.join(', ')}</p>`;
+            }
+          }
+          
+          resultDiv.innerHTML = html;
+        } else {
+          resultDiv.innerHTML = `<span style="color: #ff6b6b;">❌ ${escapeHtml(res.error || 'נכשל')}</span>`;
+        }
+      } catch (e) {
+        resultDiv.innerHTML = `<span style="color: #ff6b6b;">❌ שגיאה: ${escapeHtml(e.message)}</span>`;
+      }
     }
     
     // Test email
@@ -1315,6 +1409,7 @@
     
     // Load data on page load
     loadData();
+    loadGamesForSimulation();
     
     // Auto refresh every 30 seconds
     setInterval(loadData, 30000);
