@@ -9,6 +9,7 @@
     // App state
     const state = {
         games: [],
+        followedGames: [],
         isLoading: false,
         userEmail: null
     };
@@ -25,8 +26,30 @@
         // Setup event listeners
         setupEventListeners();
         
+        // Load followed games if user is logged in
+        if (state.userEmail) {
+            await loadFollowedGames();
+        }
+        
         // Load games
         await loadGames();
+    }
+    
+    /**
+     * Load user's followed games from server
+     */
+    async function loadFollowedGames() {
+        if (!state.userEmail) return;
+        
+        try {
+            const result = await API.getFollowedGames(state.userEmail);
+            if (result.success && result.games) {
+                state.followedGames = result.games.map(g => g.gameId || g.id);
+                console.log('📋 Loaded followed games:', state.followedGames);
+            }
+        } catch (error) {
+            console.error('Failed to load followed games:', error);
+        }
     }
     
     /**
@@ -108,11 +131,11 @@
         try {
             const games = await API.fetchGames();
             state.games = games;
-            UI.renderGames(games);
+            UI.renderGames(games, state.followedGames);
         } catch (error) {
             console.error('Failed to load games:', error);
             UI.showToast('שגיאה בטעינת המשחקים', 'error');
-            UI.renderGames([]);
+            UI.renderGames([], []);
         } finally {
             state.isLoading = false;
         }
@@ -157,6 +180,11 @@
                 localStorage.setItem('userEmail', email);
                 state.userEmail = email;
                 
+                // Add game to followed games
+                if (!state.followedGames.includes(gameId)) {
+                    state.followedGames.push(gameId);
+                }
+                
                 // Close modal
                 UI.closeFollowModal();
                 
@@ -168,9 +196,10 @@
                 if (gameCard) {
                     const followBtn = gameCard.querySelector('.follow-btn');
                     if (followBtn) {
-                        followBtn.innerHTML = '<span>✓</span><span>עוקב</span>';
+                        followBtn.innerHTML = '<span>✅</span><span>עוקב</span>';
                         followBtn.classList.remove('btn-outline');
-                        followBtn.classList.add('btn-secondary');
+                        followBtn.classList.add('btn-success');
+                        followBtn.classList.add('following-btn');
                         followBtn.disabled = true;
                     }
                 }

@@ -1279,6 +1279,27 @@ function isSubscriptionOrNonGame(name) {
   return false;
 }
 
+// Get subscriber's monitored games
+app.get('/api/subscriber/games', (req, res) => {
+  const { email, phone } = req.query;
+  
+  if (!email && !phone) {
+    return res.status(400).json({ error: 'Email or phone required' });
+  }
+  
+  // Use userManager to find subscriber
+  const subscriber = userManager.findExistingUser(data, email, phone);
+  
+  if (!subscriber) {
+    return res.json({ success: true, games: [] });
+  }
+  
+  res.json({ 
+    success: true,
+    games: subscriber.monitoredGames || [] 
+  });
+});
+
 // Subscribe to game from website (email only, no license required)
 app.post('/api/subscriber/add-game', async (req, res) => {
   const { email, phone, gameId, gameName, source } = req.body;
@@ -3630,6 +3651,38 @@ app.post('/api/coupon/activate', async (req, res) => {
     freeFromCoupon: true,
     usage: { emails: 0, sms: 0 }
   };
+  
+  // Also update the subscriber with VIP status and phone
+  const emailLower = email.toLowerCase();
+  const existingUser = userManager.findUserByEmail(data, email);
+  
+  if (existingUser) {
+    // Update existing subscriber with VIP info
+    existingUser.user.phone = normalizedPhone || existingUser.user.phone;
+    existingUser.user.licenseKey = licenseKey;
+    existingUser.user.plan = 'vip';
+    existingUser.user.smsEnabled = true;
+    existingUser.user.couponUsed = upperCode;
+    existingUser.user.vipSince = new Date().toISOString();
+    log.info('subscriber', `מנוי ${existingUser.id} שודרג ל-VIP עם קופון ${upperCode}`);
+  } else {
+    // Create new subscriber with VIP status
+    const newId = `coupon-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+    data.subscribers[newId] = {
+      email: emailLower,
+      phone: normalizedPhone,
+      licenseKey: licenseKey,
+      plan: 'vip',
+      smsEnabled: true,
+      active: true,
+      games: [],
+      createdAt: new Date().toISOString(),
+      source: 'coupon',
+      couponUsed: upperCode,
+      vipSince: new Date().toISOString()
+    };
+    log.info('subscriber', `מנוי חדש נוצר עם קופון ${upperCode}: ${newId}`);
+  }
   
   saveData();
   log.success('license', `רישיון ${licenseKey} נוצר עם קופון ${upperCode} עבור ${email}`);

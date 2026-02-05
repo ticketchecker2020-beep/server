@@ -45,14 +45,18 @@ const UI = {
     /**
      * Create game card HTML
      * @param {Object} game - Game data
+     * @param {Array} followedGames - Array of followed game IDs (optional)
      * @returns {string} HTML string
      */
-    createGameCard(game) {
+    createGameCard(game, followedGames = []) {
         const status = game.ticketStatus || (game.soldOut ? 'soldOut' : (game.hasTickets ? 'available' : 'unknown'));
         const statusClass = status === 'soldOut' ? 'sold-out' : (status === 'available' ? 'has-tickets' : '');
         const statusBadge = this.getStatusBadge(game);
         const priceDisplay = this.formatPrice(game.minPrice, game.maxPrice);
         const showBuyButton = status === 'available';
+        
+        // Check if user is following this game
+        const isFollowing = followedGames && followedGames.includes(game.id);
         
         return `
             <div class="game-card ${statusClass}" data-game-id="${game.id}">
@@ -91,12 +95,17 @@ const UI = {
                             <span>קנה כרטיסים</span>
                         </a>
                     ` : ''}
-                    ${status === 'unknown' ? `
+                    ${status === 'unknown' ? (isFollowing ? `
+                        <button class="btn btn-success btn-sm following-btn" disabled data-game-id="${this.escapeAttr(game.id)}">
+                            <span>✅</span>
+                            <span>עוקב</span>
+                        </button>
+                    ` : `
                         <button class="btn btn-outline btn-sm follow-btn" data-game-id="${this.escapeAttr(game.id)}" data-game-name="${this.escapeAttr(game.name || game.opponent)}">
                             <span>🔔</span>
                             <span>עקוב</span>
                         </button>
-                    ` : ''}
+                    `) : ''}
                 </div>
             </div>
         `;
@@ -122,12 +131,16 @@ const UI = {
     /**
      * Render games grid
      * @param {Array} games - Array of game objects
+     * @param {Array} followedGames - Array of followed game IDs (optional)
      * @param {string} containerId - Container element ID
      */
-    renderGames(games, containerId = 'gamesGrid') {
+    renderGames(games, followedGames = [], containerId = 'gamesGrid') {
         const container = document.getElementById(containerId);
         const loadingEl = document.getElementById('gamesLoading');
         const emptyEl = document.getElementById('gamesEmpty');
+        
+        // Store followed games for later use
+        this.currentFollowedGames = followedGames || [];
         
         // Hide loading
         if (loadingEl) loadingEl.classList.add('hidden');
@@ -142,7 +155,7 @@ const UI = {
         if (emptyEl) emptyEl.classList.add('hidden');
         
         // Render game cards
-        container.innerHTML = games.map(game => this.createGameCard(game)).join('');
+        container.innerHTML = games.map(game => this.createGameCard(game, followedGames)).join('');
         
         // Add event listeners to follow buttons
         this.attachFollowButtonListeners();
