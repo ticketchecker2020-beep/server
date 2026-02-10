@@ -5218,14 +5218,18 @@ async function notifyAllSubscribers(games) {
       // Filter out any empty/null entries
       emailList = emailList.filter(e => e && typeof e === 'string' && e.includes('@'));
       
+      // If still empty, try subscriber.email field (for coupon-based subscribers)
+      if (emailList.length === 0 && subscriber.email && subscriber.email.includes('@')) {
+        emailList = [subscriber.email];
+      }
+      // Final fallback: subscriberId itself (if it looks like an email)
+      if (emailList.length === 0 && subscriberId.includes('@')) {
+        emailList = [subscriberId];
+      }
+      
       if (emailList.length === 0) {
-        log.error('email', `${subscriberId}: אין כתובות מייל תקינות!`, { subscriber: subscriberId, rawEmails: subscriber.emails });
-        // Last resort - use subscriberId if it looks like an email
-        if (subscriberId.includes('@')) {
-          emailList = [subscriberId];
-        } else {
-          continue;
-        }
+        log.error('email', `${subscriberId}: אין כתובות מייל תקינות!`, { subscriber: subscriberId, rawEmails: subscriber.emails, subEmail: subscriber.email });
+        continue;
       }
       
       console.log(`📧 Sending email to ${emailList.join(', ')} for subscriber ${subscriberId}`);
