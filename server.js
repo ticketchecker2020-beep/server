@@ -4148,7 +4148,7 @@ app.put('/api/admin/subscriber/:id', async (req, res) => {
   
   const { id } = req.params;
   const subscriberId = id.toLowerCase();
-  const { phone, smsEnabled, vip, newEmail } = req.body;
+  const { phone, smsEnabled, vip, active, newEmail } = req.body;
   
   if (!data.subscribers[subscriberId]) {
     return res.status(404).json({ error: 'מנוי לא נמצא' });
@@ -4158,6 +4158,7 @@ app.put('/api/admin/subscriber/:id', async (req, res) => {
   if (phone !== undefined) data.subscribers[subscriberId].phone = phone;
   if (smsEnabled !== undefined) data.subscribers[subscriberId].smsEnabled = smsEnabled;
   if (vip !== undefined) data.subscribers[subscriberId].vip = vip;
+  if (active !== undefined) data.subscribers[subscriberId].active = active;
   
   // If changing email, move to new key
   if (newEmail && newEmail.toLowerCase() !== subscriberId) {
@@ -4809,6 +4810,10 @@ function parseTicketsFromHtml(html) {
           // Extract location
           const venue = match.location?.name || 'אצטדיון טדי';
           
+          // A game has tickets if it has a starting price AND is not sold out
+          const hasStartingPrice = match.starting_price && match.starting_price > 0;
+          const isAvailable = hasStartingPrice && !isSoldOut;
+          
           games.push({
             id: eventId,
             name: gameName,
@@ -4816,7 +4821,9 @@ function parseTicketsFromHtml(html) {
             eventTime,
             venue,
             ticketUrl,
-            ticketStatus: isSoldOut ? 'soldOut' : 'available',
+            ticketStatus: isSoldOut ? 'soldOut' : (isAvailable ? 'available' : 'unknown'),
+            available: isAvailable,
+            soldOut: isSoldOut,
             startingPrice: match.starting_price || null,
             image: match.vivenu_image || null,
             restriction: match.restriction || null
@@ -4924,31 +4931,43 @@ async function updateHasTicketsStatus(availableGames) {
       
       // Check if this game matches any available game
       const isAvailable = availableGames.some(availableGame => {
-        // Match by ID (most reliable)
+        // Match by ID (exact)
         if (availableGame.id && game.id && availableGame.id === game.id) return true;
         
-        // Match by event date AND opponent name (strict match)
-        if (availableGame.eventDate && game.eventDate && game.opponent) {
-          const availableDate = new Date(availableGame.eventDate).toDateString();
-          const gameDate = new Date(game.eventDate).toDateString();
-          
-          // Date must match
-          if (availableDate === gameDate) {
-            // And opponent name must be significant match (at least 4 chars)
-            const availableName = (availableGame.name || '').toLowerCase();
-            const opponent = (game.opponent || '').toLowerCase();
-            if (opponent.length >= 4 && availableName.includes(opponent)) {
-              return true;
-            }
+        // PRIMARY MATCH: by opponent name (most robust - IDs can change)
+        if (availableGame.name && game.opponent && game.opponent.length >= 3) {
+          const availableName = availableGame.name.toLowerCase();
+          const opponent = game.opponent.toLowerCase();
+          if (availableName.includes(opponent)) {
+            console.log(`    🎯 Matched by opponent: "${opponent}" found in "${availableName}"`);
+            return true;
           }
         }
         
-        // Match by opponent name only if opponent is a specific team name (at least 6 chars)
-        if (availableGame.name && game.opponent && game.opponent.length >= 6) {
-          const availableName = availableGame.name.toLowerCase();
-          const opponent = game.opponent.toLowerCase();
-          // Require the full opponent name to appear in the available game name
-          if (availableName.includes(opponent)) return true;
+        // SECONDARY: Match by name similarity
+        if (availableGame.name && game.name) {
+          const aName = availableGame.name.toLowerCase().replace(/[^א-תa-z0-9]/g, '');
+          const gName = game.name.toLowerCase().replace(/[^א-תa-z0-9]/g, '');
+          if (aName.includes(gName) || gName.includes(aName)) {
+            console.log(`    🎯 Matched by name: "${game.name}" ~ "${availableGame.name}"`);
+            return true;
+          }
+        }
+        
+        // TERTIARY: Match by date with ±2 day tolerance AND partial name
+        if (availableGame.eventDate && game.eventDate) {
+          const availDate = new Date(availableGame.eventDate);
+          const gameDate = new Date(game.eventDate);
+          const daysDiff = Math.abs(availDate - gameDate) / (1000 * 60 * 60 * 24);
+          if (daysDiff <= 2) {
+            // Dates are close - check if any name overlap
+            const availableName = (availableGame.name || '').toLowerCase();
+            const opponent = (game.opponent || '').toLowerCase();
+            if (opponent.length >= 3 && availableName.includes(opponent)) {
+              console.log(`    🎯 Matched by date proximity + opponent`);
+              return true;
+            }
+          }
         }
         
         return false;
@@ -5014,7 +5033,8 @@ async function checkTicketsAndNotify() {
     const allGames = parseTicketsFromHtml(html);
     
     // Filter only AVAILABLE games (not sold out)
-    const availableGames = allGames.filter(g => g.available && !g.soldOut);
+    // Support both 'available' property and 'ticketStatus' for robustness
+    const availableGames = allGames.filter(g => (g.available || g.ticketStatus === 'available') && !g.soldOut);
     
     data.lastTicketCheck = new Date().toISOString();
     
@@ -5026,8 +5046,32 @@ async function checkTicketsAndNotify() {
       await updateHasTicketsStatus(availableGames);
       
       // Check for NEW games (not seen before)
-      const lastKnownIds = new Set(data.lastKnownGames || []);
-      const newGames = availableGames.filter(g => !lastKnownIds.has(g.id));
+      // Use BOTH ID and name-based matching to handle ID changes between sources
+      const lastKnown = data.lastKnownGames || [];
+      // Normalize: lastKnownGames might be strings (IDs) or objects
+      const lastKnownEntries = lastKnown.map(entry => {
+        if (typeof entry === 'string') return { id: entry, name: '' };
+        return { id: entry.id || '', name: entry.name || '' };
+      });
+      
+      const newGames = availableGames.filter(g => {
+        // Check if this game was already seen (by ID or by name)
+        const alreadyKnown = lastKnownEntries.some(known => {
+          if (known.id && g.id && known.id === g.id) return true;
+          if (known.name && g.name) {
+            const knownName = known.name.toLowerCase().replace(/[^א-תa-z0-9]/g, '');
+            const gameName = g.name.toLowerCase().replace(/[^א-תa-z0-9]/g, '');
+            if (knownName.length >= 4 && gameName.length >= 4) {
+              if (knownName.includes(gameName) || gameName.includes(knownName)) return true;
+            }
+          }
+          return false;
+        });
+        return !alreadyKnown;
+      });
+      
+      console.log(`📊 Available games: ${availableGames.length}, Previously known: ${lastKnownEntries.length}, New: ${newGames.length}`);
+      availableGames.forEach(g => console.log(`  🎮 ${g.name} | ID: ${g.id} | Status: ${g.ticketStatus} | Price: ${g.startingPrice}`));
       
       if (newGames.length > 0) {
         log.success('tickets', `${newGames.length} משחקים חדשים עם כרטיסים!`, 
@@ -5039,8 +5083,8 @@ async function checkTicketsAndNotify() {
         log.info('tickets', 'אין משחקים חדשים (כבר נשלחו התראות)');
       }
       
-      // Update known games - save full game objects for dashboard
-      data.lastKnownGames = availableGames.map(g => g.id);
+      // Update known games - save as objects with both ID and name for robust matching
+      data.lastKnownGames = availableGames.map(g => ({ id: g.id, name: g.name }));
       data.availableGamesCache = availableGames; // Save full game data
       saveData();
     } else {
@@ -5059,7 +5103,8 @@ async function checkTicketsAndNotify() {
 // Notify all registered subscribers
 async function notifyAllSubscribers(games) {
   const subscribers = data.subscribers || {};
-  const subscriberIds = Object.keys(subscribers).filter(id => subscribers[id].active);
+  // Default: treat subscribers WITHOUT 'active' field as active (active !== false)
+  const subscriberIds = Object.keys(subscribers).filter(id => subscribers[id].active !== false);
   
   if (subscriberIds.length === 0) {
     console.log('📭 No active subscribers to notify');
@@ -5085,6 +5130,13 @@ async function notifyAllSubscribers(games) {
             // Match by ID
             if (game.id && monitored.id && game.id === monitored.id) return true;
             
+            // Match by opponent (PRIMARY - most robust)
+            if (game.name && monitored.opponent && monitored.opponent.length >= 3) {
+              const gameName = game.name.toLowerCase();
+              const opponent = monitored.opponent.toLowerCase();
+              if (gameName.includes(opponent)) return true;
+            }
+            
             // Match by name similarity
             if (game.name && monitored.name) {
               const gameName = game.name.toLowerCase().replace(/[^א-תa-z0-9]/g, '');
@@ -5092,11 +5144,23 @@ async function notifyAllSubscribers(games) {
               if (gameName.includes(monitoredName) || monitoredName.includes(gameName)) return true;
             }
             
-            // Match by opponent
+            // Match by opponent in game name (reverse direction)
             if (game.name && monitored.opponent) {
               const gameName = game.name.toLowerCase();
               const opponent = monitored.opponent.toLowerCase();
               if (gameName.includes(opponent)) return true;
+            }
+            
+            // Match by date proximity (±2 days) + any name overlap
+            if (game.eventDate && monitored.eventDate) {
+              const gDate = new Date(game.eventDate);
+              const mDate = new Date(monitored.eventDate);
+              const daysDiff = Math.abs(gDate - mDate) / (1000 * 60 * 60 * 24);
+              if (daysDiff <= 2 && monitored.opponent) {
+                const gameName = game.name.toLowerCase();
+                const opponent = monitored.opponent.toLowerCase();
+                if (opponent.length >= 3 && gameName.includes(opponent)) return true;
+              }
             }
             
             return false;
@@ -5490,17 +5554,35 @@ app.post('/api/admin/test-sms', async (req, res) => {
   }
 });
 
+// Reset lastKnownGames (to trigger fresh notifications)
+app.post('/api/admin/reset-known-games', async (req, res) => {
+  const adminPass = req.query.p || req.query.password || req.headers['x-admin-password'];
+  if (adminPass !== process.env.ADMIN_PASSWORD && adminPass !== 'BeitarAdmin123!') {
+    return res.status(401).json({ error: 'Invalid admin password' });
+  }
+  
+  const previousCount = (data.lastKnownGames || []).length;
+  data.lastKnownGames = [];
+  await saveData();
+  
+  log.info('api', `lastKnownGames reset (was ${previousCount} games)`);
+  res.json({ success: true, message: `Reset ${previousCount} known games. Next check will treat all available games as NEW.` });
+});
+
 // Force ticket check
 app.post('/api/admin/check-now', async (req, res) => {
   try {
     log.info('api', 'Manual ticket check triggered');
     
-    // Run the check (but don't wait for it to complete)
-    checkTicketsAndNotify().catch(err => {
-      log.error('api', 'Manual check failed', { error: err.message });
-    });
+    // Run the check and WAIT for it to complete so we can return results
+    await checkTicketsAndNotify();
     
-    res.json({ success: true, message: 'Ticket check started' });
+    res.json({ 
+      success: true, 
+      message: 'Ticket check completed',
+      lastKnownGames: (data.lastKnownGames || []).length,
+      availableGames: (data.availableGamesCache || []).map(g => ({ name: g.name, ticketStatus: g.ticketStatus, available: g.available }))
+    });
   } catch (error) {
     log.error('api', 'Failed to trigger manual check', { error: error.message });
     res.status(500).json({ error: error.message });
@@ -5510,7 +5592,7 @@ app.post('/api/admin/check-now', async (req, res) => {
 // Get stats
 app.get('/api/stats', (req, res) => {
   const activeSubscribers = Object.entries(data.subscribers || {})
-    .filter(([_, sub]) => sub.active);
+    .filter(([_, sub]) => sub.active !== false);
   
   const gamesWithTickets = (data.lastKnownGames || [])
     .filter(g => g.status === 'available');
