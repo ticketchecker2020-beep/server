@@ -5012,8 +5012,69 @@ async function fetchWithRetry(url, options = {}, maxRetries = 3) {
   }
 }
 
+// =============================================
+// AUTO-CLEANUP: Remove expired/past games from monitored lists
+// =============================================
+function cleanupExpiredMonitoredGames() {
+  const now = new Date();
+  // Set to start of today (midnight) so games on today are still valid
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const subscribers = data.subscribers || {};
+  let totalRemoved = 0;
+  
+  for (const [subscriberId, subscriber] of Object.entries(subscribers)) {
+    if (!subscriber.monitoredGames || subscriber.monitoredGames.length === 0) continue;
+    
+    const before = subscriber.monitoredGames.length;
+    subscriber.monitoredGames = subscriber.monitoredGames.filter(game => {
+      // Try to extract date from game ID format: beitar-official-YYYY-MM-DD-X
+      const idDateMatch = game.id && game.id.match(/(\d{4}-\d{2}-\d{2})/);
+      if (idDateMatch) {
+        const gameDate = new Date(idDateMatch[1] + 'T23:59:59');
+        if (gameDate < today) {
+          console.log(`🧹 Removing expired game "${game.opponent || game.id}" (${idDateMatch[1]}) from ${subscriberId}`);
+          return false; // Remove it
+        }
+      }
+      
+      // Try eventDate field if available
+      if (game.eventDate) {
+        const gameDate = new Date(game.eventDate);
+        if (!isNaN(gameDate.getTime()) && gameDate < today) {
+          console.log(`🧹 Removing expired game "${game.opponent || game.id}" (${game.eventDate}) from ${subscriberId}`);
+          return false;
+        }
+      }
+      
+      // Try date field if available
+      if (game.date) {
+        const gameDate = new Date(game.date);
+        if (!isNaN(gameDate.getTime()) && gameDate < today) {
+          console.log(`🧹 Removing expired game "${game.opponent || game.id}" (${game.date}) from ${subscriberId}`);
+          return false;
+        }
+      }
+      
+      return true; // Keep it
+    });
+    
+    const removed = before - subscriber.monitoredGames.length;
+    totalRemoved += removed;
+  }
+  
+  if (totalRemoved > 0) {
+    console.log(`🧹 Cleanup: removed ${totalRemoved} expired games from monitored lists`);
+    saveData();
+  }
+  
+  return totalRemoved;
+}
+
 // Check for new tickets and notify subscribers
 async function checkTicketsAndNotify() {
+  // First, clean up expired games
+  cleanupExpiredMonitoredGames();
+  
   log.info('tickets', 'בודק כרטיסים לבית"ר ירושלים...');
   
   try {
@@ -5595,7 +5656,18 @@ app.post('/api/admin/reset-known-games', async (req, res) => {
   res.json({ success: true, message: `Reset ${previousCount} known games. Next check will treat all available games as NEW.` });
 });
 
-// 🧪 DRY RUN: Diagnose notification flow WITHOUT sending anything
+// � Admin: Cleanup expired games from all subscribers' monitored lists
+app.post('/api/admin/cleanup-expired-games', async (req, res) => {
+  const adminPass = req.query.p || req.query.password || req.headers['x-admin-password'];
+  if (adminPass !== process.env.ADMIN_PASSWORD && adminPass !== 'BeitarAdmin123!') {
+    return res.status(401).json({ error: 'Invalid admin password' });
+  }
+  
+  const removed = cleanupExpiredMonitoredGames();
+  res.json({ success: true, removedCount: removed, message: `Removed ${removed} expired games from monitored lists` });
+});
+
+// �🧪 DRY RUN: Diagnose notification flow WITHOUT sending anything
 app.get('/api/admin/diagnose-notifications', async (req, res) => {
   const adminPass = req.query.p || req.query.password || req.headers['x-admin-password'];
   if (adminPass !== process.env.ADMIN_PASSWORD && adminPass !== 'BeitarAdmin123!') {
