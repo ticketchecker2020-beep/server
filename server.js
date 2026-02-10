@@ -5685,6 +5685,11 @@ app.get('/api/admin/diagnose-notifications', async (req, res) => {
         emailList = [subscriberId];
       }
       emailList = emailList.filter(e => e && typeof e === 'string' && e.includes('@'));
+      // Fallback: subscriber.email field (for coupon-based subscribers)
+      if (emailList.length === 0 && subscriber.email && subscriber.email.includes('@')) {
+        emailList = [subscriber.email];
+      }
+      // Final fallback: subscriberId itself (if it looks like an email)
       if (emailList.length === 0 && subscriberId.includes('@')) {
         emailList = [subscriberId];
       }
