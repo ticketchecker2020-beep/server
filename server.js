@@ -4805,7 +4805,7 @@ function parseTicketsFromHtml(html) {
           
           // Build ticket URL
           const ticketUrl = match.event_id 
-            ? `https://www.leaan.co.il/event/${match.event_id}`
+            ? `https://www.leaan.co.il/events/${match.event_id}`
             : 'https://www.leaan.co.il/category/%D7%A1%D7%A4%D7%95%D7%A8%D7%98/%D7%9B%D7%93%D7%95%D7%A8%D7%92%D7%9C/%D7%91%D7%99%D7%AA%D7%A8-%D7%99%D7%A8%D7%95%D7%A9%D7%9C%D7%99%D7%9D';
           
           // Extract location
