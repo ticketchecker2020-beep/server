@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>מחירון - ביתר מוניטור</title>
+    <meta name="description" content="בחרו את המסלול המתאים לכם - התראות אימייל חינם או SMS מיידי">
+    
+    <!-- Favicon -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚽</text></svg>">
+    
+    <!-- Styles -->
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container header-content">
+            <div class="logo">
+                <a href="index.html" style="display: flex; align-items: center; gap: 10px; text-decoration: none;">
+                    <span class="logo-icon">⚽</span>
+                    <div>
+                        <span class="logo-text">ביתר מוניטור</span>
+                        <span class="logo-subtitle">התראות כרטיסים</span>
+                    </div>
+                </a>
+            </div>
+            <div class="header-actions">
+                <a href="index.html" class="btn btn-secondary btn-sm">
+                    <span>🏠</span>
+                    <span>חזרה</span>
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Pricing Section -->
+    <section class="pricing-section">
+        <div class="container">
+            <div class="text-center mb-3">
+                <h1 class="hero-title">💳 בחרו את המסלול שלכם</h1>
+                <p class="hero-subtitle">לא מפספסים אף משחק של ביתר!</p>
+            </div>
+            
+            <div class="pricing-grid">
+                <!-- Free Plan -->
+                <div class="pricing-card">
+                    <div class="pricing-icon">📧</div>
+                    <h2 class="pricing-name">אימייל</h2>
+                    <div class="pricing-price">חינם</div>
+                    <div class="pricing-period">לתמיד</div>
+                    
+                    <ul class="pricing-features">
+                        <li>
+                            <span class="feature-icon">✓</span>
+                            <span>התראות באימייל</span>
+                        </li>
+                        <li>
+                            <span class="feature-icon">✓</span>
+                            <span>מעקב אחרי כל המשחקים</span>
+                        </li>
+                        <li>
+                            <span class="feature-icon">✓</span>
+                            <span>בדיקה כל 5 דקות</span>
+                        </li>
+                    </ul>
+                    
+                    <a href="index.html" class="btn btn-secondary btn-block">
+                        <span>📧</span>
+                        <span>התחילו בחינם</span>
+                    </a>
+                </div>
+                
+                <!-- SMS Premium Plan -->
+                <div class="pricing-card featured">
+                    <div class="pricing-badge">⭐ מומלץ</div>
+                    <div class="pricing-icon">💬</div>
+                    <h2 class="pricing-name">SMS פרימיום</h2>
+                    <div class="pricing-price">₪29</div>
+                    <div class="pricing-period">לעונה</div>
+                    
+                    <ul class="pricing-features">
+                        <li>
+                            <span class="feature-icon">✓</span>
+                            <span>כל היתרונות של אימייל</span>
+                        </li>
+                        <li>
+                            <span class="feature-icon">✓</span>
+                            <span><strong>התראות SMS מיידיות</strong></span>
+                        </li>
+                        <li>
+                            <span class="feature-icon">✓</span>
+                            <span>בדיקה כל דקה!</span>
+                        </li>
+                        <li>
+                            <span class="feature-icon">✓</span>
+                            <span>עדיפות בהודעות</span>
+                        </li>
+                        <li>
+                            <span class="feature-icon">✓</span>
+                            <span>תמיכה מועדפת</span>
+                        </li>
+                    </ul>
+                    
+                    <button class="btn btn-primary btn-block" id="buySmsBtn">
+                        <span>🚀</span>
+                        <span>שדרגו עכשיו</span>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Coupon Section -->
+            <div class="coupon-section">
+                <h3 class="coupon-title">🎟️ יש לכם קוד קופון?</h3>
+                <form class="coupon-form" id="couponForm">
+                    <input 
+                        type="text" 
+                        class="form-input" 
+                        id="couponInput" 
+                        placeholder="הכניסו קוד קופון"
+                        autocomplete="off"
+                    >
+                    <button type="submit" class="btn btn-primary">
+                        <span>✓</span>
+                    </button>
+                </form>
+                <p class="form-hint mt-1" id="couponHint"></p>
+            </div>
+        </div>
+    </section>
+
+    <!-- SMS Registration Modal -->
+    <div class="modal-overlay" id="smsModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">💬 שדרוג ל-SMS</h3>
+                <button class="modal-close" id="closeSmsModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="smsForm">
+                    <div class="form-group">
+                        <label class="form-label" for="smsEmailInput">כתובת אימייל</label>
+                        <input 
+                            type="email" 
+                            id="smsEmailInput" 
+                            class="form-input" 
+                            placeholder="your@email.com"
+                            required
+                            autocomplete="email"
+                        >
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="smsPhoneInput">מספר טלפון</label>
+                        <input 
+                            type="tel" 
+                            id="smsPhoneInput" 
+                            class="form-input" 
+                            placeholder="050-1234567"
+                            required
+                            autocomplete="tel"
+                            style="direction: ltr; text-align: left;"
+                        >
+                        <p class="form-hint">מספר ישראלי בלבד</p>
+                    </div>
+                    
+                    <div class="form-group" id="smsErrorContainer" style="display: none;">
+                        <p class="form-error" id="smsErrorMessage"></p>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="submit" class="btn btn-primary btn-block" id="submitSms">
+                    <span>💳</span>
+                    <span>המשך לתשלום - ₪29</span>
+                </button>
+                <p class="text-muted text-center" style="font-size: 0.8rem; margin-top: 10px;">
+                    תשלום מאובטח דרך PayBox
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <p class="footer-text">© 2025 ביתר מוניטור - כל הזכויות שמורות</p>
+            <p class="footer-slogan">💛🖤 רק ביתר בלב 🖤💛</p>
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script src="js/api.js"></script>
+    <script src="js/ui.js"></script>
+    <script>
+        // Pricing page specific logic
+        document.addEventListener('DOMContentLoaded', function() {
+            const smsModal = document.getElementById('smsModal');
+            const buySmsBtn = document.getElementById('buySmsBtn');
+            const closeSmsModal = document.getElementById('closeSmsModal');
+            const submitSms = document.getElementById('submitSms');
+            const couponForm = document.getElementById('couponForm');
+            
+            // Open SMS modal
+            buySmsBtn.addEventListener('click', function() {
+                smsModal.classList.add('active');
+            });
+            
+            // Close SMS modal
+            closeSmsModal.addEventListener('click', function() {
+                smsModal.classList.remove('active');
+            });
+            
+            // Close on overlay click
+            smsModal.addEventListener('click', function(e) {
+                if (e.target === smsModal) {
+                    smsModal.classList.remove('active');
+                }
+            });
+            
+            // Submit SMS form
+            submitSms.addEventListener('click', async function() {
+                const email = document.getElementById('smsEmailInput').value.trim();
+                const phone = document.getElementById('smsPhoneInput').value.trim();
+                
+                // Validate
+                if (!email || !phone) {
+                    showSmsError('נא למלא את כל השדות');
+                    return;
+                }
+                
+                if (!isValidEmail(email)) {
+                    showSmsError('כתובת אימייל לא תקינה');
+                    return;
+                }
+                
+                if (!isValidPhone(phone)) {
+                    showSmsError('מספר טלפון לא תקין');
+                    return;
+                }
+                
+                // Show loading
+                submitSms.disabled = true;
+                submitSms.innerHTML = '<span class="spinner" style="width:20px;height:20px;border-width:2px;"></span> מעבד...';
+                
+                try {
+                    // Create pending payment and redirect to PayBox
+                    const result = await API.createPayment(email, phone);
+                    
+                    if (result.success && result.paymentUrl) {
+                        // Store info in localStorage for success page
+                        localStorage.setItem('pendingPayment', JSON.stringify({
+                            email: email,
+                            phone: phone,
+                            transactionId: result.transactionId
+                        }));
+                        
+                        // Redirect to PayBox
+                        window.location.href = result.paymentUrl;
+                    } else {
+                        showSmsError(result.error || 'שגיאה ביצירת תשלום');
+                        submitSms.disabled = false;
+                        submitSms.innerHTML = '<span>💳</span><span>המשך לתשלום - ₪29</span>';
+                    }
+                } catch (error) {
+                    showSmsError('שגיאה בחיבור לשרת');
+                    submitSms.disabled = false;
+                    submitSms.innerHTML = '<span>💳</span><span>המשך לתשלום - ₪29</span>';
+                }
+            });
+            
+            // Coupon form
+            couponForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                const coupon = document.getElementById('couponInput').value.trim().toUpperCase();
+                const hint = document.getElementById('couponHint');
+                
+                if (!coupon) {
+                    hint.textContent = 'נא להכניס קוד קופון';
+                    hint.style.color = 'var(--danger)';
+                    return;
+                }
+                
+                try {
+                    hint.textContent = 'בודק קופון...';
+                    hint.style.color = 'var(--text-muted)';
+                    
+                    // Try to get email from localStorage first
+                    let email = localStorage.getItem('userEmail');
+                    if (!email) {
+                        email = prompt('הכניסו את כתובת האימייל שלכם:');
+                        if (!email) {
+                            hint.textContent = '';
+                            return;
+                        }
+                    }
+                    
+                    // Ask for phone number (required for SMS)
+                    let phone = prompt('הכניסו מספר טלפון לקבלת SMS:');
+                    if (!phone) {
+                        hint.textContent = 'מספר טלפון נדרש להפעלת SMS';
+                        hint.style.color = 'var(--danger)';
+                        return;
+                    }
+                    
+                    const result = await API.activateCoupon(coupon, email, phone);
+                    
+                    if (result.success) {
+                        hint.textContent = '✓ הקופון הופעל בהצלחה!';
+                        hint.style.color = 'var(--success)';
+                        UI.showToast('הקופון הופעל! כעת תקבלו התראות SMS', 'success');
+
+                        // Save user info for future use
+                        if (email) localStorage.setItem('userEmail', email);
+                        if (phone) localStorage.setItem('userPhone', phone);
+                        if (result.licenseKey) localStorage.setItem('licenseKey', result.licenseKey);
+
+                        // Auto-follow pending game (if exists)
+                        const pendingGameFollow = JSON.parse(localStorage.getItem('pendingGameFollow') || 'null');
+                        if (pendingGameFollow && pendingGameFollow.gameId) {
+                            try {
+                                const followResult = await API.subscribeToGame(email, pendingGameFollow.gameId, pendingGameFollow.gameName);
+                                if (followResult.success) {
+                                    localStorage.removeItem('pendingGameFollow');
+                                    UI.showToast(`נרשמתם לקבלת התראות על ${pendingGameFollow.gameName}! 🎉`, 'success');
+                                }
+                            } catch (followError) {
+                                console.error('Auto follow after coupon failed:', followError);
+                            }
+                        }
+                    } else {
+                        hint.textContent = result.error || 'קופון לא תקין';
+                        hint.style.color = 'var(--danger)';
+                    }
+                } catch (error) {
+                    hint.textContent = 'שגיאה בבדיקת הקופון';
+                    hint.style.color = 'var(--danger)';
+                }
+            });
+            
+            function showSmsError(message) {
+                const container = document.getElementById('smsErrorContainer');
+                const messageEl = document.getElementById('smsErrorMessage');
+                container.style.display = 'block';
+                messageEl.textContent = message;
+            }
+            
+            function isValidEmail(email) {
+                return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+            }
+            
+            function isValidPhone(phone) {
+                const cleaned = phone.replace(/[\s\-]/g, '');
+                return /^0[5][0-9]{8}$/.test(cleaned);
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>הצלחה! - ביתר מוניטור</title>
+    <meta name="description" content="התשלום בוצע בהצלחה - ברוכים הבאים לביתר מוניטור SMS">
+    
+    <!-- Favicon -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚽</text></svg>">
+    
+    <!-- Styles -->
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container header-content">
+            <div class="logo">
+                <a href="index.html" style="display: flex; align-items: center; gap: 10px; text-decoration: none;">
+                    <span class="logo-icon">⚽</span>
+                    <div>
+                        <span class="logo-text">ביתר מוניטור</span>
+                        <span class="logo-subtitle">התראות כרטיסים</span>
+                    </div>
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Success Content -->
+    <div class="success-container">
+        <div class="success-card" id="successCard">
+            <div class="success-icon">🎉</div>
+            <h1 class="success-title">התשלום בוצע בהצלחה!</h1>
+            <p class="success-message">ברוכים הבאים למשפחת ביתר מוניטור SMS</p>
+            
+            <div class="success-details" id="successDetails">
+                <!-- Will be filled dynamically -->
+            </div>
+            
+            <div class="alert alert-success">
+                <span>💬</span>
+                <span>תקבלו SMS כשיהיו כרטיסים זמינים!</span>
+            </div>
+            
+            <a href="index.html" class="btn btn-primary btn-block mt-2">
+                <span>🏠</span>
+                <span>חזרה לעמוד הראשי</span>
+            </a>
+        </div>
+        
+        <!-- Error state (hidden by default) -->
+        <div class="success-card hidden" id="errorCard" style="border-color: var(--danger);">
+            <div class="success-icon">❌</div>
+            <h1 class="success-title" style="color: var(--danger);">משהו השתבש</h1>
+            <p class="success-message" id="errorMessage">לא הצלחנו לאמת את התשלום</p>
+            
+            <a href="pricing.html" class="btn btn-primary btn-block mt-2">
+                <span>🔄</span>
+                <span>נסו שוב</span>
+            </a>
+            <a href="index.html" class="btn btn-secondary btn-block mt-1">
+                <span>🏠</span>
+                <span>חזרה לעמוד הראשי</span>
+            </a>
+        </div>
+        
+        <!-- Loading state -->
+        <div class="success-card" id="loadingCard" style="border-color: var(--accent);">
+            <div class="games-loading">
+                <div class="spinner"></div>
+                <p>מאמת תשלום...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <p class="footer-text">© 2025 ביתר מוניטור - כל הזכויות שמורות</p>
+            <p class="footer-slogan">💛🖤 רק ביתר בלב 🖤💛</p>
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script src="js/api.js"></script>
+    <script src="js/ui.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async function() {
+            const successCard = document.getElementById('successCard');
+            const errorCard = document.getElementById('errorCard');
+            const loadingCard = document.getElementById('loadingCard');
+            const successDetails = document.getElementById('successDetails');
+            const errorMessage = document.getElementById('errorMessage');
+            
+            // Initially show loading, hide others
+            successCard.classList.add('hidden');
+            errorCard.classList.add('hidden');
+            loadingCard.classList.remove('hidden');
+            
+            // Get URL parameters (from PayBox callback)
+            const urlParams = new URLSearchParams(window.location.search);
+            const transactionId = urlParams.get('transaction_id') || urlParams.get('transactionId');
+            const status = urlParams.get('status');
+            
+            // Also check localStorage for pending payment
+            const pendingPayment = JSON.parse(localStorage.getItem('pendingPayment') || '{}');
+            
+            async function finalizeActivation(resultData) {
+                const email = resultData.email || pendingPayment.email;
+                const phone = resultData.phone || pendingPayment.phone;
+                const licenseKey = resultData.licenseKey;
+
+                if (email) localStorage.setItem('userEmail', email);
+                if (phone) localStorage.setItem('userPhone', phone);
+                if (licenseKey) localStorage.setItem('licenseKey', licenseKey);
+
+                const pendingGameFollow = JSON.parse(localStorage.getItem('pendingGameFollow') || 'null');
+                if (pendingGameFollow && pendingGameFollow.gameId && email) {
+                    try {
+                        const followResult = await API.subscribeToGame(email, pendingGameFollow.gameId, pendingGameFollow.gameName);
+                        if (followResult.success) {
+                            localStorage.removeItem('pendingGameFollow');
+                        }
+                    } catch (followError) {
+                        console.error('Auto follow after payment failed:', followError);
+                    }
+                }
+            }
+            
+            try {
+                if (status === 'success' || transactionId) {
+                    // Verify payment with server
+                    const result = await API.verifyPayment(transactionId || pendingPayment.transactionId);
+                    
+                    if (result.success) {
+                        // Show success
+                        loadingCard.classList.add('hidden');
+                        successCard.classList.remove('hidden');
+                        
+                        // Fill in details
+                        successDetails.innerHTML = `
+                            <div class="success-detail">
+                                <span class="success-detail-label">אימייל:</span>
+                                <span class="success-detail-value">${result.email || pendingPayment.email || 'לא זמין'}</span>
+                            </div>
+                            <div class="success-detail">
+                                <span class="success-detail-label">טלפון:</span>
+                                <span class="success-detail-value">${result.phone || pendingPayment.phone || 'לא זמין'}</span>
+                            </div>
+                            <div class="success-detail">
+                                <span class="success-detail-label">מפתח רישיון:</span>
+                                <span class="success-detail-value" style="font-size: 0.8rem;">${result.licenseKey || 'יישלח באימייל'}</span>
+                            </div>
+                            <div class="success-detail">
+                                <span class="success-detail-label">תוקף:</span>
+                                <span class="success-detail-value">עד סוף העונה</span>
+                            </div>
+                        `;
+                        
+                        await finalizeActivation(result);
+                        
+                        // Clear pending payment
+                        localStorage.removeItem('pendingPayment');
+                    } else {
+                        throw new Error(result.error || 'Payment verification failed');
+                    }
+                } else if (status === 'cancelled' || status === 'failed') {
+                    loadingCard.classList.add('hidden');
+                    errorCard.classList.remove('hidden');
+                    errorMessage.textContent = status === 'cancelled' 
+                        ? 'התשלום בוטל' 
+                        : 'התשלום נכשל';
+                } else {
+                    // No status - check if we have pending payment info
+                    if (pendingPayment.transactionId) {
+                        const result = await API.verifyPayment(pendingPayment.transactionId);
+                        
+                        if (result.success) {
+                            loadingCard.classList.add('hidden');
+                            successCard.classList.remove('hidden');
+                            
+                            successDetails.innerHTML = `
+                                <div class="success-detail">
+                                    <span class="success-detail-label">אימייל:</span>
+                                    <span class="success-detail-value">${result.email || pendingPayment.email}</span>
+                                </div>
+                                <div class="success-detail">
+                                    <span class="success-detail-label">טלפון:</span>
+                                    <span class="success-detail-value">${result.phone || pendingPayment.phone}</span>
+                                </div>
+                                <div class="success-detail">
+                                    <span class="success-detail-label">מפתח רישיון:</span>
+                                    <span class="success-detail-value" style="font-size: 0.8rem;">${result.licenseKey || 'יישלח באימייל'}</span>
+                                </div>
+                            `;
+                            
+                            await finalizeActivation(result);
+                            
+                            localStorage.removeItem('pendingPayment');
+                        } else {
+                            throw new Error('Could not verify payment');
+                        }
+                    } else {
+                        // No transaction info at all
+                        loadingCard.classList.add('hidden');
+                        errorCard.classList.remove('hidden');
+                        errorMessage.textContent = 'לא נמצא מידע על תשלום';
+                    }
+                }
+            } catch (error) {
+                console.error('Error verifying payment:', error);
+                loadingCard.classList.add('hidden');
+                errorCard.classList.remove('hidden');
+                errorMessage.textContent = 'שגיאה באימות התשלום';
+            }
+        });
+    </script>
+</body>
+</html>
