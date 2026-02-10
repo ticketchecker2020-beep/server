@@ -5591,6 +5591,130 @@ app.post('/api/admin/reset-known-games', async (req, res) => {
   res.json({ success: true, message: `Reset ${previousCount} known games. Next check will treat all available games as NEW.` });
 });
 
+// 🧪 DRY RUN: Diagnose notification flow WITHOUT sending anything
+app.get('/api/admin/diagnose-notifications', async (req, res) => {
+  const adminPass = req.query.p || req.query.password || req.headers['x-admin-password'];
+  if (adminPass !== process.env.ADMIN_PASSWORD && adminPass !== 'BeitarAdmin123!') {
+    return res.status(401).json({ error: 'Invalid admin password' });
+  }
+  
+  try {
+    // Step 1: Fetch from Leaan
+    const response = await fetchWithRetry(LEAAN_URL, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept': 'text/html,application/xhtml+xml',
+        'Accept-Language': 'he-IL,he;q=0.9,en;q=0.8'
+      }
+    });
+    
+    const html = await response.text();
+    const allGames = parseTicketsFromHtml(html);
+    
+    // Step 2: Filter available
+    const availableGames = allGames.filter(g => (g.available || g.ticketStatus === 'available') && !g.soldOut);
+    
+    // Step 3: Check new games
+    const lastKnown = data.lastKnownGames || [];
+    const lastKnownEntries = lastKnown.map(entry => {
+      if (typeof entry === 'string') return { id: entry, name: '' };
+      return { id: entry.id || '', name: entry.name || '' };
+    });
+    
+    const newGames = availableGames.filter(g => {
+      const alreadyKnown = lastKnownEntries.some(known => {
+        if (known.id && g.id && known.id === g.id) return true;
+        if (known.name && g.name) {
+          const knownName = known.name.toLowerCase().replace(/[^א-תa-z0-9]/g, '');
+          const gameName = g.name.toLowerCase().replace(/[^א-תa-z0-9]/g, '');
+          if (knownName.length >= 4 && gameName.length >= 4) {
+            if (knownName.includes(gameName) || gameName.includes(knownName)) return true;
+          }
+        }
+        return false;
+      });
+      return !alreadyKnown;
+    });
+    
+    // Step 4: Check each subscriber
+    const subscribers = data.subscribers || {};
+    const allSubscriberIds = Object.keys(subscribers);
+    const activeSubscriberIds = allSubscriberIds.filter(id => subscribers[id].active !== false);
+    
+    const subscriberResults = {};
+    
+    for (const subscriberId of allSubscriberIds) {
+      const subscriber = subscribers[subscriberId];
+      const isActive = subscriber.active !== false;
+      
+      if (!isActive) {
+        subscriberResults[subscriberId] = { status: 'INACTIVE', active: subscriber.active };
+        continue;
+      }
+      
+      if (!subscriber.monitoredGames || subscriber.monitoredGames.length === 0) {
+        subscriberResults[subscriberId] = { status: 'NO_MONITORED_GAMES' };
+        continue;
+      }
+      
+      // Match games
+      const matchedGames = newGames.filter(game => {
+        return subscriber.monitoredGames.some(monitored => {
+          if (game.id && monitored.id && game.id === monitored.id) return true;
+          if (game.name && monitored.opponent && monitored.opponent.length >= 3) {
+            const gameName = game.name.toLowerCase();
+            const opponent = monitored.opponent.toLowerCase();
+            if (gameName.includes(opponent)) return true;
+          }
+          if (game.name && monitored.name) {
+            const gameName = game.name.toLowerCase().replace(/[^א-תa-z0-9]/g, '');
+            const monitoredName = monitored.name.toLowerCase().replace(/[^א-תa-z0-9]/g, '');
+            if (gameName.includes(monitoredName) || monitoredName.includes(gameName)) return true;
+          }
+          return false;
+        });
+      });
+      
+      // Email targets
+      let emailList = subscriber.emails;
+      if (!emailList || !Array.isArray(emailList) || emailList.length === 0) {
+        emailList = [subscriberId];
+      }
+      emailList = emailList.filter(e => e && typeof e === 'string' && e.includes('@'));
+      if (emailList.length === 0 && subscriberId.includes('@')) {
+        emailList = [subscriberId];
+      }
+      
+      subscriberResults[subscriberId] = {
+        status: matchedGames.length > 0 ? 'WOULD_NOTIFY' : 'NO_MATCH',
+        active: subscriber.active,
+        activeCheck: subscriber.active !== false,
+        monitoredGames: subscriber.monitoredGames.map(m => ({ opponent: m.opponent, id: m.id })),
+        matchedGames: matchedGames.map(g => ({ name: g.name, id: g.id })),
+        emailTargets: emailList,
+        rawEmailsField: subscriber.emails,
+        hasPhone: !!subscriber.phone,
+        smsEnabled: !!subscriber.smsEnabled,
+        lastNotified: subscriber.lastNotified || null
+      };
+    }
+    
+    res.json({
+      step1_totalGames: allGames.length,
+      step1_games: allGames.map(g => ({ name: g.name, available: g.available, soldOut: g.soldOut, ticketStatus: g.ticketStatus, startingPrice: g.startingPrice })),
+      step2_availableGames: availableGames.length,
+      step2_available: availableGames.map(g => ({ name: g.name, id: g.id })),
+      step3_lastKnownCount: lastKnownEntries.length,
+      step3_newGames: newGames.length,
+      step3_new: newGames.map(g => ({ name: g.name, id: g.id })),
+      step4_subscribers: subscriberResults
+    });
+    
+  } catch (error) {
+    res.status(500).json({ error: error.message, stack: error.stack });
+  }
+});
+
 // Force ticket check
 app.post('/api/admin/check-now', async (req, res) => {
   try {
