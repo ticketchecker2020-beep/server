@@ -550,7 +550,7 @@ async function sendEmail(to, subject, htmlContent) {
     return true;
   } catch (error) {
     console.error(`❌ Email failed to ${to}:`, error.message);
-    trackUsage('email', false, { error: error.message });
+    trackUsage('email', false, { to: to ? (to.substring(0, 3) + '***') : 'EMPTY', error: error.message });
     return false;
   }
 }
@@ -4148,7 +4148,7 @@ app.put('/api/admin/subscriber/:id', async (req, res) => {
   
   const { id } = req.params;
   const subscriberId = id.toLowerCase();
-  const { phone, smsEnabled, vip, active, newEmail } = req.body;
+  const { phone, smsEnabled, vip, active, emails, newEmail } = req.body;
   
   if (!data.subscribers[subscriberId]) {
     return res.status(404).json({ error: 'מנוי לא נמצא' });
@@ -4159,6 +4159,7 @@ app.put('/api/admin/subscriber/:id', async (req, res) => {
   if (smsEnabled !== undefined) data.subscribers[subscriberId].smsEnabled = smsEnabled;
   if (vip !== undefined) data.subscribers[subscriberId].vip = vip;
   if (active !== undefined) data.subscribers[subscriberId].active = active;
+  if (emails !== undefined) data.subscribers[subscriberId].emails = emails;
   
   // If changing email, move to new key
   if (newEmail && newEmail.toLowerCase() !== subscriberId) {
@@ -5209,12 +5210,33 @@ async function notifyAllSubscribers(games) {
       `;
       
       // Send to ALL emails in the subscriber's list
-      const emailList = subscriber.emails || [subscriberId];
+      // ROBUST: handle missing, null, empty array, or array with empty strings
+      let emailList = subscriber.emails;
+      if (!emailList || !Array.isArray(emailList) || emailList.length === 0) {
+        emailList = [subscriberId];
+      }
+      // Filter out any empty/null entries
+      emailList = emailList.filter(e => e && typeof e === 'string' && e.includes('@'));
+      
+      if (emailList.length === 0) {
+        log.error('email', `${subscriberId}: אין כתובות מייל תקינות!`, { subscriber: subscriberId, rawEmails: subscriber.emails });
+        // Last resort - use subscriberId if it looks like an email
+        if (subscriberId.includes('@')) {
+          emailList = [subscriberId];
+        } else {
+          continue;
+        }
+      }
+      
+      console.log(`📧 Sending email to ${emailList.join(', ')} for subscriber ${subscriberId}`);
+      
       for (const email of emailList) {
         const success = await sendEmail(email, '🎟️ כרטיסים זמינים לבית"ר ירושלים!', emailHtml);
         if (success) {
           emailsSent++;
           log.success('email', `מייל נשלח ל-${email}`);
+        } else {
+          log.error('email', `מייל נכשל ל-${email}`, { subscriber: subscriberId });
         }
       }
       
