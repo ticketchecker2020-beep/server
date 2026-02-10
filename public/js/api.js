@@ -71,7 +71,7 @@ const API = {
             soldOut: event.ticketStatus === 'soldOut' || event.soldOut || false,
             minPrice: event.startingPrice || event.min_price || event.price_from || null,
             maxPrice: event.max_price || event.price_to || null,
-            ticketUrl: event.ticketUrl || event.url || event.ticket_url || `https://www.leaan.co.il/events/${event.id}`,
+            ticketUrl: event.ticketUrl || event.url || event.ticket_url || 'https://www.leaan.co.il/category/%D7%A1%D7%A4%D7%95%D7%A8%D7%98/%D7%9B%D7%93%D7%95%D7%A8%D7%92%D7%9C/%D7%91%D7%99%D7%AA%D7%A8-%D7%99%D7%A8%D7%95%D7%A9%D7%9C%D7%99%D7%9D',
             imageUrl: event.image || event.image_url || null,
             competition: event.competition || event.category || 'ליגה'
         }));

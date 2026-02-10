@@ -1525,7 +1525,7 @@ async function sendWelcomeEmailForWebUser(email, gameName) {
         </p>
         
         <p style="text-align: center; color: #ffd700; font-size: 16px; margin-top: 20px;">
-          💛🖤 צהוב זה הצבע!
+          💛🖤 ${getRandomChant()}
         </p>
       </div>
     `;
@@ -1855,7 +1855,7 @@ app.get('/', (req, res) => {
     <div>
       <a href="/pricing" class="btn">💰 מחירים</a>
     </div>
-    <p style="margin-top: 40px; font-size: 0.9em;">💛🖤 צהוב זה הצבע!</p>
+    <p style="margin-top: 40px; font-size: 0.9em;">💛🖤 ${getRandomChant()}</p>
   </div>
 </body>
 </html>
@@ -2146,7 +2146,7 @@ app.post('/api/admin/simulate-ticket-available', async (req, res) => {
               </div>
               
               <p style="text-align: center; margin-top: 30px; color: #888;">
-                💛🖤 צהוב זה הצבע!
+                💛🖤 ${getRandomChant()}
               </p>
             </div>
           </body>
@@ -2163,7 +2163,7 @@ app.post('/api/admin/simulate-ticket-available', async (req, res) => {
     // Send SMS if VIP
     if (sub.smsEnabled && sub.phone) {
       try {
-        await sendSMS(sub.phone, `🧪 [סימולציה]\n🎫 יש כרטיסים ל-${gameName}!\n🔗 ${ticketUrl}\n💛🖤 צהוב זה הצבע!`);
+        await sendSMS(sub.phone, `🧪 [סימולציה]\n🎫 יש כרטיסים ל-${gameName}!\n🔗 ${ticketUrl}\n💛🖤 ${getRandomChant()}`);
         results.smsSent++;
         log.info('admin', `📱 Simulation SMS sent to ${sub.phone}`);
       } catch (e) {
@@ -2440,7 +2440,7 @@ app.get('/', (req, res) => {
     </div>
     
     <div class="footer">
-      <p>💛🖤 צהוב זה הצבע!</p>
+      <p>💛🖤 ${getRandomChant()}</p>
       <p style="margin-top: 10px;">
         <a href="/pricing" style="color: #ffd700;">מחירים</a> • 
         <a href="/privacy" style="color: #888;">פרטיות</a>
@@ -3425,7 +3425,7 @@ app.get('/payment-complete', async (req, res) => {
       <a href="/pricing" class="btn">חזרה למחירים</a>
     `}
     
-    <p style="margin-top: 30px; color: #666;">💛🖤 צהוב זה הצבע!</p>
+    <p style="margin-top: 30px; color: #666;">💛🖤 ${getRandomChant()}</p>
   </div>
   
   <script>
@@ -4803,10 +4803,17 @@ function parseTicketsFromHtml(html) {
             eventTime = date.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
           }
           
-          // Build ticket URL
-          const ticketUrl = match.event_id 
-            ? `https://www.leaan.co.il/events/${match.event_id}`
-            : 'https://www.leaan.co.il/category/%D7%A1%D7%A4%D7%95%D7%A8%D7%98/%D7%9B%D7%93%D7%95%D7%A8%D7%92%D7%9C/%D7%91%D7%99%D7%AA%D7%A8-%D7%99%D7%A8%D7%95%D7%A9%D7%9C%D7%99%D7%9D';
+          // Build ticket URL - format: /events/{slug}/{numeric-id}
+          // The slug can be anything, but we use the event name for SEO
+          const BEITAR_CATEGORY_URL = 'https://www.leaan.co.il/category/%D7%A1%D7%A4%D7%95%D7%A8%D7%98/%D7%9B%D7%93%D7%95%D7%A8%D7%92%D7%9C/%D7%91%D7%99%D7%AA%D7%A8-%D7%99%D7%A8%D7%95%D7%A9%D7%9C%D7%99%D7%9D';
+          let ticketUrl;
+          if (match.id) {
+            // Use numeric id with a slug derived from the event name
+            const slug = encodeURIComponent(gameName.replace(/\s+/g, '-').replace(/["']/g, ''));
+            ticketUrl = `https://www.leaan.co.il/events/${slug}/${match.id}`;
+          } else {
+            ticketUrl = BEITAR_CATEGORY_URL;
+          }
           
           // Extract location
           const venue = match.location?.name || 'אצטדיון טדי';
@@ -5262,7 +5269,7 @@ async function notifyAllSubscribers(games) {
             `).join('')}
             
             <p style="text-align: center; margin-top: 30px; color: #888;">
-              💛🖤 צהוב זה הצבע!<br>
+              💛🖤 ${getRandomChant()}<br>
               <a href="https://server-tickets-l0rq.onrender.com/unsubscribe?email=${encodeURIComponent(subscriberId)}" style="color: #666; font-size: 12px;">להסרה מהרשימה</a>
             </p>
           </div>
@@ -5381,7 +5388,7 @@ app.post('/api/subscribe', async (req, res) => {
       <h1 style="color: #ffd700;">🎟️ נרשמת בהצלחה!</h1>
       <p>תקבל התראה באימייל ברגע שיהיו כרטיסים זמינים למשחקי בית"ר ירושלים.</p>
       <p>הבדיקה מתבצעת אוטומטית כל 5 דקות, 24/7!</p>
-      <p style="color: #888;">💛🖤 צהוב זה הצבע!</p>
+      <p style="color: #888;">💛🖤 ${getRandomChant()}</p>
     </div>
   `;
   
