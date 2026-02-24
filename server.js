@@ -1497,17 +1497,21 @@ app.post('/api/subscriber/add-game', async (req, res) => {
       return res.json({ success: true, message: 'Game already monitored', subscriberId, isNewUser: false });
     }
     
-    // Add game
+    // Add game - also store eventDate from cache for smart cleanup
+    const cachedGame = (data.availableGamesCache || []).find(g => g.id === gameId);
+    const eventDate = cachedGame?.eventDate || null;
+    
     subscriber.monitoredGames.push({
       id: gameId,
       name: gameName,
       opponent: extractOpponentFromName(gameName),
+      eventDate: eventDate,
       addedAt: new Date().toISOString(),
       hasTickets: false
     });
     
     await saveData();
-    log.info('website', `Game subscription: ${email} -> ${gameName}`);
+    log.info('website', `Game subscription: ${email} -> ${gameName} (eventDate: ${eventDate || 'unknown'})`);
     
     // Send welcome email for new users
     if (isNewUser) {
@@ -5080,10 +5084,19 @@ async function fetchWithRetry(url, options = {}, maxRetries = 3) {
 // =============================================
 // AUTO-CLEANUP: Remove expired/past games from monitored lists
 // =============================================
+// POLICY: Keep monitored games for 30 DAYS after their event date!
+// Why? False alarms scenario: user monitors "עירוני טבריה", site shows "עירוני ערוגות טבריה" 
+// (false positive match), then later "עירוני דורות טבריה" (the REAL game) appears.
+// If we clean up immediately, user loses their monitor and misses the real game.
+// 30-day grace period ensures we never miss a notification due to premature cleanup.
+const CLEANUP_GRACE_DAYS = 30;
+
 function cleanupExpiredMonitoredGames() {
   const now = new Date();
-  // Set to start of today (midnight) so games on today are still valid
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  // Grace period: game date + 30 days before we remove it
+  const cutoffDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  cutoffDate.setDate(cutoffDate.getDate() - CLEANUP_GRACE_DAYS);
+  
   const subscribers = data.subscribers || {};
   let totalRemoved = 0;
   
@@ -5092,35 +5105,42 @@ function cleanupExpiredMonitoredGames() {
     
     const before = subscriber.monitoredGames.length;
     subscriber.monitoredGames = subscriber.monitoredGames.filter(game => {
-      // Try to extract date from game ID format: beitar-official-YYYY-MM-DD-X
-      const idDateMatch = game.id && game.id.match(/(\d{4}-\d{2}-\d{2})/);
-      if (idDateMatch) {
-        const gameDate = new Date(idDateMatch[1] + 'T23:59:59');
-        if (gameDate < today) {
-          console.log(`🧹 Removing expired game "${game.opponent || game.id}" (${idDateMatch[1]}) from ${subscriberId}`);
-          return false; // Remove it
-        }
-      }
+      // Find the best date we have for this game
+      let gameDate = null;
       
-      // Try eventDate field if available
+      // Priority 1: eventDate from the site (most accurate)
       if (game.eventDate) {
-        const gameDate = new Date(game.eventDate);
-        if (!isNaN(gameDate.getTime()) && gameDate < today) {
-          console.log(`🧹 Removing expired game "${game.opponent || game.id}" (${game.eventDate}) from ${subscriberId}`);
-          return false;
+        const parsed = new Date(game.eventDate);
+        if (!isNaN(parsed.getTime())) gameDate = parsed;
+      }
+      
+      // Priority 2: date field
+      if (!gameDate && game.date) {
+        const parsed = new Date(game.date);
+        if (!isNaN(parsed.getTime())) gameDate = parsed;
+      }
+      
+      // Priority 3: extract from game ID format: beitar-official-YYYY-MM-DD-X
+      if (!gameDate && game.id) {
+        const idDateMatch = game.id.match(/(\d{4}-\d{2}-\d{2})/);
+        if (idDateMatch) {
+          const parsed = new Date(idDateMatch[1] + 'T23:59:59');
+          if (!isNaN(parsed.getTime())) gameDate = parsed;
         }
       }
       
-      // Try date field if available
-      if (game.date) {
-        const gameDate = new Date(game.date);
-        if (!isNaN(gameDate.getTime()) && gameDate < today) {
-          console.log(`🧹 Removing expired game "${game.opponent || game.id}" (${game.date}) from ${subscriberId}`);
-          return false;
-        }
+      // No date found - keep it (don't remove what we can't date)
+      if (!gameDate) return true;
+      
+      // Remove only if game date + 30 days has passed
+      if (gameDate < cutoffDate) {
+        const dateStr = gameDate.toISOString().split('T')[0];
+        const daysAgo = Math.floor((now - gameDate) / (1000 * 60 * 60 * 24));
+        console.log(`🧹 Removing expired game "${game.opponent || game.id}" (${dateStr}, ${daysAgo} days ago, grace=${CLEANUP_GRACE_DAYS}d) from ${subscriberId}`);
+        return false; // Remove it
       }
       
-      return true; // Keep it
+      return true; // Keep it - still within grace period
     });
     
     const removed = before - subscriber.monitoredGames.length;
@@ -5128,7 +5148,7 @@ function cleanupExpiredMonitoredGames() {
   }
   
   if (totalRemoved > 0) {
-    console.log(`🧹 Cleanup: removed ${totalRemoved} expired games from monitored lists`);
+    console.log(`🧹 Cleanup: removed ${totalRemoved} expired games (>${CLEANUP_GRACE_DAYS} days past event date)`);
     saveData();
   }
   
