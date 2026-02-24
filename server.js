@@ -5217,15 +5217,36 @@ async function checkTicketsAndNotify() {
         return !alreadyKnown;
       });
       
-      console.log(`📊 Available games: ${availableGames.length}, Previously known: ${lastKnownEntries.length}, New: ${newGames.length}`);
+      // RENAMED GAMES: Same ID but name changed → re-notify subscribers matching the NEW name
+      // Example: "עירוני דורות טבריה" → "עירוני טבריה" (same game, name corrected)
+      // User monitoring "עירוני טבריה" should get notified for the new name too
+      const renamedGames = availableGames.filter(g => {
+        const knownEntry = lastKnownEntries.find(known => known.id && g.id && known.id === g.id);
+        if (!knownEntry || !knownEntry.name || !g.name) return false;
+        // Same ID but name changed significantly?
+        const oldStripped = knownEntry.name.toLowerCase().replace(/[^א-תa-z0-9]/g, '');
+        const newStripped = g.name.toLowerCase().replace(/[^א-תa-z0-9]/g, '');
+        if (oldStripped === newStripped) return false; // Same name, no change
+        // Name actually changed - mark for re-notification
+        console.log(`🔄 Game name changed: "${knownEntry.name}" → "${g.name}" (ID: ${g.id})`);
+        g._previousName = knownEntry.name; // Store old name for smart matching
+        return true;
+      });
+      
+      // Combine: new games + renamed games (will be filtered per-subscriber in notifyAllSubscribers)
+      const gamesToProcess = [...newGames, ...renamedGames.filter(rg => !newGames.some(ng => ng.id === rg.id))];
+      
+      console.log(`📊 Available games: ${availableGames.length}, Previously known: ${lastKnownEntries.length}, New: ${newGames.length}, Renamed: ${renamedGames.length}`);
       availableGames.forEach(g => console.log(`  🎮 ${g.name} | ID: ${g.id} | Status: ${g.ticketStatus} | Price: ${g.startingPrice}`));
       
-      if (newGames.length > 0) {
-        log.success('tickets', `${newGames.length} משחקים חדשים עם כרטיסים!`, 
-          { games: newGames.map(g => g.name) });
+      if (gamesToProcess.length > 0) {
+        log.success('tickets', `${gamesToProcess.length} משחקים לעיבוד (${newGames.length} חדשים, ${renamedGames.length} שינוי שם)`, 
+          { games: gamesToProcess.map(g => g.name) });
         
         // Notify all subscribers
-        await notifyAllSubscribers(newGames);
+        // For renamed games, only notify subscribers whose monitored game 
+        // matches the NEW name but did NOT match the OLD name (avoid duplicate notifications)
+        await notifyAllSubscribers(gamesToProcess);
       } else {
         log.info('tickets', 'אין משחקים חדשים (כבר נשלחו התראות)');
       }
@@ -5273,7 +5294,21 @@ async function notifyAllSubscribers(games) {
       if (subscriber.monitoredGames && subscriber.monitoredGames.length > 0) {
         // Subscriber has specific games - use central isGameMatch ("Don't Miss" policy)
         gamesToNotify = games.filter(game => {
-          return subscriber.monitoredGames.some(monitored => isGameMatch(game.name, monitored));
+          const matchesNewName = subscriber.monitoredGames.some(monitored => isGameMatch(game.name, monitored));
+          if (!matchesNewName) return false;
+          
+          // For RENAMED games: only notify if subscriber did NOT already match the OLD name
+          // (prevents duplicate notification for same game after name change)
+          if (game._previousName) {
+            const matchedOldName = subscriber.monitoredGames.some(monitored => isGameMatch(game._previousName, monitored));
+            if (matchedOldName) {
+              log.info('email', `${subscriberId}: skipping renamed game "${game._previousName}" → "${game.name}" (already matched old name)`);
+              return false; // Already notified for this game under old name
+            }
+            log.info('email', `${subscriberId}: renamed game "${game._previousName}" → "${game.name}" matches NEW name only → notifying!`);
+          }
+          
+          return true;
         });
         
         log.info('email', `${subscriberId}: ${gamesToNotify.length}/${games.length} משחקים מתאימים למעקב`, 
