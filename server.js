@@ -1226,6 +1226,64 @@ app.get('/api/games/proxy', async (req, res) => {
   }
 });
 
+// ============================================
+// 🎯 SMART GAME MATCHING - "Don't Miss" Policy
+// ============================================
+// Central matching function used everywhere.
+// Priority: NEVER miss a match. False positives are OK.
+// Example: monitored "עירוני טבריה" must match "עירוני דורות טבריה"
+function isGameMatch(gameName, monitored) {
+  if (!gameName || !monitored) return false;
+  
+  // Match by ID (exact)
+  if (monitored.id && gameName.id && monitored.id === gameName.id) return true;
+  
+  const gameNameLower = (typeof gameName === 'string' ? gameName : gameName.name || '').toLowerCase();
+  const opponent = (monitored.opponent || '').toLowerCase();
+  const monitoredName = (monitored.name || '').toLowerCase();
+  
+  if (!gameNameLower) return false;
+  
+  // 1. Direct substring match (existing logic)
+  if (opponent.length >= 3 && gameNameLower.includes(opponent)) return true;
+  
+  // 2. WORD-BASED MATCH: ALL significant words from opponent appear in game name
+  //    "עירוני טבריה" → ["עירוני", "טבריה"] → both in "עירוני דורות טבריה" → MATCH!
+  if (opponent.length >= 3) {
+    const opponentWords = opponent.split(/\s+/).filter(w => w.length >= 2);
+    if (opponentWords.length >= 1) {
+      const allWordsFound = opponentWords.every(word => gameNameLower.includes(word));
+      if (allWordsFound) return true;
+    }
+    
+    // 3. Reverse: game word match in opponent (for shorter game names)
+    const gameWords = gameNameLower.replace(/בית["\u05F4]ר\s*ירושלים/gi, '').replace(/[-–]/g, ' ').split(/\s+/).filter(w => w.length >= 2);
+    if (gameWords.length >= 1 && opponentWords.length >= 1) {
+      // At least 50% of opponent words found in game name words
+      const matchCount = opponentWords.filter(ow => gameWords.some(gw => gw.includes(ow) || ow.includes(gw))).length;
+      if (matchCount >= Math.ceil(opponentWords.length * 0.5)) return true;
+    }
+  }
+  
+  // 4. Name similarity (stripped)
+  if (monitoredName.length >= 4) {
+    const gameStripped = gameNameLower.replace(/[^א-תa-z0-9]/g, '');
+    const monStripped = monitoredName.replace(/[^א-תa-z0-9]/g, '');
+    if (gameStripped.includes(monStripped) || monStripped.includes(gameStripped)) return true;
+    
+    // Word-based on full monitored name too
+    const monWords = monitoredName.split(/\s+/).filter(w => w.length >= 2);
+    // Remove "ביתר ירושלים" from search
+    const significantWords = monWords.filter(w => !['ביתר', 'בית"ר', 'ירושלים', '-'].includes(w));
+    if (significantWords.length >= 1) {
+      const allFound = significantWords.every(word => gameNameLower.includes(word));
+      if (allFound) return true;
+    }
+  }
+  
+  return false;
+}
+
 // Helper to extract opponent from game name
 function extractOpponentFromName(gameName) {
   if (!gameName) return 'יריב';
@@ -5193,47 +5251,9 @@ async function notifyAllSubscribers(games) {
       let gamesToNotify = games;
       
       if (subscriber.monitoredGames && subscriber.monitoredGames.length > 0) {
-        // Subscriber has specific games - filter only those
+        // Subscriber has specific games - use central isGameMatch ("Don't Miss" policy)
         gamesToNotify = games.filter(game => {
-          return subscriber.monitoredGames.some(monitored => {
-            // Match by ID
-            if (game.id && monitored.id && game.id === monitored.id) return true;
-            
-            // Match by opponent (PRIMARY - most robust)
-            if (game.name && monitored.opponent && monitored.opponent.length >= 3) {
-              const gameName = game.name.toLowerCase();
-              const opponent = monitored.opponent.toLowerCase();
-              if (gameName.includes(opponent)) return true;
-            }
-            
-            // Match by name similarity
-            if (game.name && monitored.name) {
-              const gameName = game.name.toLowerCase().replace(/[^א-תa-z0-9]/g, '');
-              const monitoredName = monitored.name.toLowerCase().replace(/[^א-תa-z0-9]/g, '');
-              if (gameName.includes(monitoredName) || monitoredName.includes(gameName)) return true;
-            }
-            
-            // Match by opponent in game name (reverse direction)
-            if (game.name && monitored.opponent) {
-              const gameName = game.name.toLowerCase();
-              const opponent = monitored.opponent.toLowerCase();
-              if (gameName.includes(opponent)) return true;
-            }
-            
-            // Match by date proximity (±2 days) + any name overlap
-            if (game.eventDate && monitored.eventDate) {
-              const gDate = new Date(game.eventDate);
-              const mDate = new Date(monitored.eventDate);
-              const daysDiff = Math.abs(gDate - mDate) / (1000 * 60 * 60 * 24);
-              if (daysDiff <= 2 && monitored.opponent) {
-                const gameName = game.name.toLowerCase();
-                const opponent = monitored.opponent.toLowerCase();
-                if (opponent.length >= 3 && gameName.includes(opponent)) return true;
-              }
-            }
-            
-            return false;
-          });
+          return subscriber.monitoredGames.some(monitored => isGameMatch(game.name, monitored));
         });
         
         log.info('email', `${subscriberId}: ${gamesToNotify.length}/${games.length} משחקים מתאימים למעקב`, 
@@ -5740,22 +5760,9 @@ app.get('/api/admin/diagnose-notifications', async (req, res) => {
         continue;
       }
       
-      // Match games
+      // Match games - use central isGameMatch ("Don't Miss" policy)
       const matchedGames = newGames.filter(game => {
-        return subscriber.monitoredGames.some(monitored => {
-          if (game.id && monitored.id && game.id === monitored.id) return true;
-          if (game.name && monitored.opponent && monitored.opponent.length >= 3) {
-            const gameName = game.name.toLowerCase();
-            const opponent = monitored.opponent.toLowerCase();
-            if (gameName.includes(opponent)) return true;
-          }
-          if (game.name && monitored.name) {
-            const gameName = game.name.toLowerCase().replace(/[^א-תa-z0-9]/g, '');
-            const monitoredName = monitored.name.toLowerCase().replace(/[^א-תa-z0-9]/g, '');
-            if (gameName.includes(monitoredName) || monitoredName.includes(gameName)) return true;
-          }
-          return false;
-        });
+        return subscriber.monitoredGames.some(monitored => isGameMatch(game.name, monitored));
       });
       
       // Email targets
