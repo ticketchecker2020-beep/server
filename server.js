@@ -5197,8 +5197,8 @@ async function checkTicketsAndNotify() {
       const lastKnown = data.lastKnownGames || [];
       // Normalize: lastKnownGames might be strings (IDs) or objects
       const lastKnownEntries = lastKnown.map(entry => {
-        if (typeof entry === 'string') return { id: entry, name: '' };
-        return { id: entry.id || '', name: entry.name || '' };
+        if (typeof entry === 'string') return { id: entry, name: '', restriction: '' };
+        return { id: entry.id || '', name: entry.name || '', restriction: entry.restriction || '' };
       });
       
       const newGames = availableGames.filter(g => {
@@ -5233,26 +5233,54 @@ async function checkTicketsAndNotify() {
         return true;
       });
       
-      // Combine: new games + renamed games (will be filtered per-subscriber in notifyAllSubscribers)
-      const gamesToProcess = [...newGames, ...renamedGames.filter(rg => !newGames.some(ng => ng.id === rg.id))];
+      // RESTRICTION CHANGED: Same ID, same name, but restriction changed
+      // Example: "למנויים בלבד" → "" (subscribers only → open to all)
+      // Or: "" → "למנויים בלבד" (new restriction added)
+      const restrictionChangedGames = availableGames.filter(g => {
+        const knownEntry = lastKnownEntries.find(known => known.id && g.id && known.id === g.id);
+        if (!knownEntry) return false; // New game, handled separately
+        
+        const oldRestriction = (knownEntry.restriction || '').trim();
+        const newRestriction = (g.restriction || '').trim();
+        
+        // No change in restriction
+        if (oldRestriction === newRestriction) return false;
+        
+        // Skip if already detected as new game or renamed game
+        if (newGames.some(ng => ng.id === g.id)) return false;
+        if (renamedGames.some(rg => rg.id === g.id)) return false;
+        
+        console.log(`🔓 Restriction changed for "${g.name}": "${oldRestriction || '(ללא הגבלה)'}" → "${newRestriction || '(ללא הגבלה)'}"`);
+        g._restrictionChanged = true;
+        g._previousRestriction = oldRestriction;
+        return true;
+      });
       
-      console.log(`📊 Available games: ${availableGames.length}, Previously known: ${lastKnownEntries.length}, New: ${newGames.length}, Renamed: ${renamedGames.length}`);
-      availableGames.forEach(g => console.log(`  🎮 ${g.name} | ID: ${g.id} | Status: ${g.ticketStatus} | Price: ${g.startingPrice}`));
+      // Combine: new games + renamed games + restriction-changed games
+      const gamesToProcess = [
+        ...newGames, 
+        ...renamedGames.filter(rg => !newGames.some(ng => ng.id === rg.id)),
+        ...restrictionChangedGames
+      ];
+      
+      console.log(`📊 Available games: ${availableGames.length}, Previously known: ${lastKnownEntries.length}, New: ${newGames.length}, Renamed: ${renamedGames.length}, Restriction changed: ${restrictionChangedGames.length}`);
+      availableGames.forEach(g => console.log(`  🎮 ${g.name} | ID: ${g.id} | Status: ${g.ticketStatus} | Price: ${g.startingPrice} | Restriction: ${g.restriction || '(none)'}`));
       
       if (gamesToProcess.length > 0) {
-        log.success('tickets', `${gamesToProcess.length} משחקים לעיבוד (${newGames.length} חדשים, ${renamedGames.length} שינוי שם)`, 
+        log.success('tickets', `${gamesToProcess.length} משחקים לעיבוד (${newGames.length} חדשים, ${renamedGames.length} שינוי שם, ${restrictionChangedGames.length} שינוי הגבלה)`, 
           { games: gamesToProcess.map(g => g.name) });
         
         // Notify all subscribers
         // For renamed games, only notify subscribers whose monitored game 
         // matches the NEW name but did NOT match the OLD name (avoid duplicate notifications)
+        // For restriction changes, re-notify ALL matching subscribers
         await notifyAllSubscribers(gamesToProcess);
       } else {
         log.info('tickets', 'אין משחקים חדשים (כבר נשלחו התראות)');
       }
       
-      // Update known games - save as objects with both ID and name for robust matching
-      data.lastKnownGames = availableGames.map(g => ({ id: g.id, name: g.name }));
+      // Update known games - save as objects with ID, name, and restriction for robust matching
+      data.lastKnownGames = availableGames.map(g => ({ id: g.id, name: g.name, restriction: g.restriction || '' }));
       data.availableGamesCache = availableGames; // Save full game data
       saveData();
     } else {
@@ -5297,6 +5325,16 @@ async function notifyAllSubscribers(games) {
           const matchesNewName = subscriber.monitoredGames.some(monitored => isGameMatch(game.name, monitored));
           if (!matchesNewName) return false;
           
+          // For RESTRICTION CHANGED games: always re-notify matching subscribers
+          // (they need to know the restriction status changed)
+          if (game._restrictionChanged) {
+            const restrictionInfo = game.restriction 
+              ? `restriction added: "${game.restriction}"` 
+              : `restriction removed (was: "${game._previousRestriction}")`;
+            log.info('email', `${subscriberId}: restriction changed for "${game.name}" → ${restrictionInfo} → notifying!`);
+            return true; // Always notify for restriction changes
+          }
+          
           // For RENAMED games: only notify if subscriber did NOT already match the OLD name
           // (prevents duplicate notification for same game after name change)
           if (game._previousName) {
@@ -5326,22 +5364,46 @@ async function notifyAllSubscribers(games) {
       }
       
       // Build email HTML
+      // Determine email subject based on restriction status
+      const hasRestrictionChange = gamesToNotify.some(g => g._restrictionChanged);
+      const allRestrictionLifted = hasRestrictionChange && gamesToNotify.every(g => g._restrictionChanged && !g.restriction);
+      const emailSubject = allRestrictionLifted 
+        ? '🎉 המכירה נפתחה לכולם! כרטיסים לבית"ר ירושלים'
+        : hasRestrictionChange 
+          ? '🔔 עדכון מכירת כרטיסים - בית"ר ירושלים'
+          : '🎟️ כרטיסים זמינים לבית"ר ירושלים!';
+      
       const emailHtml = `
         <!DOCTYPE html>
         <html dir="rtl" lang="he">
         <head><meta charset="UTF-8"></head>
         <body style="font-family: Arial; background: #111; color: #fff; padding: 20px;">
           <div style="max-width: 500px; margin: 0 auto; background: #1a1a1a; border-radius: 15px; padding: 30px; border: 2px solid #ffd700;">
-            <h1 style="color: #ffd700; text-align: center;">🎟️ כרטיסים זמינים!</h1>
-            <p style="text-align: center; color: #ccc;">נמצאו כרטיסים למשחקי בית"ר ירושלים!</p>
+            <h1 style="color: #ffd700; text-align: center;">${allRestrictionLifted ? '🎉 המכירה נפתחה לכולם!' : '🎟️ כרטיסים זמינים!'}</h1>
+            <p style="text-align: center; color: #ccc;">${allRestrictionLifted ? 'כרטיסים למשחקי בית"ר ירושלים זמינים כעת לכולם!' : 'נמצאו כרטיסים למשחקי בית"ר ירושלים!'}</p>
             
-            ${gamesToNotify.map(g => `
-              <div style="background: #222; padding: 15px; border-radius: 10px; margin: 10px 0; border-right: 3px solid #ffd700;">
+            ${gamesToNotify.map(g => {
+              // Build restriction badge
+              let restrictionBadge = '';
+              if (g._restrictionChanged && !g.restriction) {
+                // Restriction was REMOVED → open to all!
+                restrictionBadge = '<div style="background: #2d7a2d; color: #fff; padding: 6px 12px; border-radius: 15px; margin: 8px 0; font-size: 13px; text-align: center;">🎉 המכירה נפתחה לכולם!</div>';
+              } else if (g._restrictionChanged && g.restriction) {
+                // Restriction was CHANGED/ADDED
+                restrictionBadge = `<div style="background: #8B6914; color: #fff; padding: 6px 12px; border-radius: 15px; margin: 8px 0; font-size: 13px; text-align: center;">⚠️ ${g.restriction}</div>`;
+              } else if (g.restriction) {
+                // New game WITH restriction
+                restrictionBadge = `<div style="background: #8B6914; color: #fff; padding: 6px 12px; border-radius: 15px; margin: 8px 0; font-size: 13px; text-align: center;">⚠️ ${g.restriction}</div>`;
+              }
+              
+              return `
+              <div style="background: #222; padding: 15px; border-radius: 10px; margin: 10px 0; border-right: 3px solid ${g._restrictionChanged && !g.restriction ? '#2d7a2d' : '#ffd700'};">
                 <div style="color: #fff; font-weight: bold;">${g.name}</div>
+                ${restrictionBadge}
                 ${g.ticketPrice ? `<div style="color: #ffd700;">מחיר: ${g.ticketPrice}₪</div>` : ''}
                 <a href="${g.ticketUrl}" style="display: inline-block; margin-top: 10px; background: #ffd700; color: #000; padding: 8px 16px; text-decoration: none; border-radius: 20px; font-weight: bold;">לרכישה</a>
-              </div>
-            `).join('')}
+              </div>`;
+            }).join('')}
             
             <p style="text-align: center; margin-top: 30px; color: #888;">
               💛🖤 ${getRandomChant()}<br>
@@ -5378,7 +5440,7 @@ async function notifyAllSubscribers(games) {
       console.log(`📧 Sending email to ${emailList.join(', ')} for subscriber ${subscriberId}`);
       
       for (const email of emailList) {
-        const success = await sendEmail(email, '🎟️ כרטיסים זמינים לבית"ר ירושלים!', emailHtml);
+        const success = await sendEmail(email, emailSubject, emailHtml);
         if (success) {
           emailsSent++;
           log.success('email', `מייל נשלח ל-${email}`);
@@ -5396,7 +5458,19 @@ async function notifyAllSubscribers(games) {
           const price = gamesToNotify[0].ticketPrice ? ` ${gamesToNotify[0].ticketPrice}₪` : '';
           const url = gamesToNotify[0].ticketUrl || 'https://www.leaan.co.il';
           const chant = getRandomChant();
-          const smsText = `🔥 כרטיסים זמינים לבית"ר!\n⚽ VS ${opponent}${price}\n🎟️ היכנסו עכשיו: ${url}\n💛🖤 ${chant}`;
+          
+          // Add restriction info to SMS
+          let smsRestriction = '';
+          const firstGame = gamesToNotify[0];
+          if (firstGame._restrictionChanged && !firstGame.restriction) {
+            smsRestriction = '\n🎉 המכירה נפתחה לכולם!';
+          } else if (firstGame.restriction) {
+            smsRestriction = `\n⚠️ ${firstGame.restriction}`;
+          }
+          
+          const smsText = firstGame._restrictionChanged && !firstGame.restriction
+            ? `🎉 המכירה נפתחה לכולם!\n⚽ VS ${opponent}${price}\n🎟️ היכנסו עכשיו: ${url}\n💛🖤 ${chant}`
+            : `🔥 כרטיסים זמינים לבית"ר!\n⚽ VS ${opponent}${price}${smsRestriction}\n🎟️ היכנסו עכשיו: ${url}\n💛🖤 ${chant}`;
           const smsSuccess = await sendSMS(subscriber.phone, smsText);
           
           if (smsSuccess) {
