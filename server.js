@@ -5279,6 +5279,13 @@ async function checkTicketsAndNotify() {
         log.info('tickets', 'אין משחקים חדשים (כבר נשלחו התראות)');
       }
       
+      // === SEPARATE: Notify "new game detected" subscribers ===
+      // This is INDEPENDENT from the per-game monitoring above.
+      // Sends a heads-up when ANY new game appears on Leaan, so they can go mark it.
+      if (newGames.length > 0) {
+        await notifyNewGameDetected(newGames);
+      }
+      
       // Update known games - save as objects with ID, name, and restriction for robust matching
       data.lastKnownGames = availableGames.map(g => ({ id: g.id, name: g.name, restriction: g.restriction || '' }));
       data.availableGamesCache = availableGames; // Save full game data
@@ -5293,6 +5300,92 @@ async function checkTicketsAndNotify() {
     
   } catch (error) {
     console.error('❌ Error checking tickets:', error.message);
+  }
+}
+
+// ============================================
+// 🆕 NEW GAME DETECTED - separate from per-game monitoring
+// Sends a heads-up to subscribers with notifyNewGames: true
+// so they can go to the dashboard and mark games for alerts.
+// Does NOT touch monitoredGames logic at all.
+// ============================================
+async function notifyNewGameDetected(newGames) {
+  const subscribers = data.subscribers || {};
+  const ids = Object.keys(subscribers).filter(id => 
+    subscribers[id].active !== false && subscribers[id].notifyNewGames === true
+  );
+  
+  if (ids.length === 0) return;
+  
+  console.log(`🆕 ${newGames.length} new game(s) detected, notifying ${ids.length} "new game" subscribers`);
+  
+  const gameList = newGames.map(g => {
+    const price = g.startingPrice ? ` | ${g.startingPrice}₪` : '';
+    const restriction = g.restriction ? ` | ⚠️ ${g.restriction}` : '';
+    return `⚽ ${g.name}${price}${restriction}`;
+  }).join('\n');
+  
+  const dashboardUrl = 'https://server-tickets-l0rq.onrender.com';
+  
+  for (const subscriberId of ids) {
+    const subscriber = subscribers[subscriberId];
+    
+    try {
+      // Build email list (same fallback chain as main notifications)
+      let emailList = subscriber.emails;
+      if (!emailList || !Array.isArray(emailList) || emailList.length === 0) {
+        emailList = [subscriberId];
+      }
+      emailList = emailList.filter(e => e && typeof e === 'string' && e.includes('@'));
+      if (emailList.length === 0 && subscriber.email && subscriber.email.includes('@')) {
+        emailList = [subscriber.email];
+      }
+      if (emailList.length === 0 && subscriberId.includes('@')) {
+        emailList = [subscriberId];
+      }
+      
+      // Send email
+      if (emailList.length > 0) {
+        const emailHtml = `
+          <div dir="rtl" style="font-family: Arial; max-width: 600px; margin: 0 auto; background: #1a1a2e; color: #fff; padding: 30px; border-radius: 15px;">
+            <h2 style="color: #ffd700; text-align: center;">🆕 משחק חדש עלה ללאן!</h2>
+            <p style="text-align: center; color: #ccc;">עלו ${newGames.length} משחק/ים חדשים באתר לאן:</p>
+            ${newGames.map(g => `
+              <div style="background: #222; padding: 15px; border-radius: 10px; margin: 10px 0; border-right: 3px solid #ffd700;">
+                <div style="color: #fff; font-weight: bold;">⚽ ${g.name}</div>
+                ${g.eventDate ? `<div style="color: #aaa;">📅 ${g.eventDate}</div>` : ''}
+                ${g.startingPrice ? `<div style="color: #ffd700;">💰 החל מ-${g.startingPrice}₪</div>` : ''}
+                ${g.restriction ? `<div style="color: #ff9800;">⚠️ ${g.restriction}</div>` : ''}
+                ${g.ticketUrl ? `<a href="${g.ticketUrl}" style="display: inline-block; margin-top: 8px; background: #ffd700; color: #000; padding: 6px 14px; text-decoration: none; border-radius: 20px; font-weight: bold; font-size: 13px;">לרכישה</a>` : ''}
+              </div>
+            `).join('')}
+            <p style="text-align: center; margin-top: 20px;">
+              <a href="${dashboardUrl}" style="display: inline-block; background: #333; color: #ffd700; padding: 10px 24px; text-decoration: none; border-radius: 25px; font-weight: bold;">
+                📋 היכנס לדשבורד לסמן משחקים למעקב
+              </a>
+            </p>
+            <p style="text-align: center; margin-top: 20px; color: #888; font-size: 12px;">
+              💛🖤 ${getRandomChant()}<br>
+              זוהי התראת "משחק חדש" — תקבל התראה נפרדת כשיהיו כרטיסים למשחקים שסימנת.
+            </p>
+          </div>
+        `;
+        
+        for (const email of emailList) {
+          await sendEmail(email, `🆕 משחק חדש באתר לאן: ${newGames.map(g => g.name).join(', ')}`, emailHtml);
+        }
+        console.log(`  📧 New game alert email sent to ${emailList.join(', ')} for ${subscriberId}`);
+      }
+      
+      // Send SMS if enabled
+      if (subscriber.smsEnabled && subscriber.phone) {
+        const smsText = `🆕 משחק חדש בלאן!\n${gameList}\n📋 היכנס לדשבורד: ${dashboardUrl}\n💛🖤 ${getRandomChant()}`;
+        await sendSMS(subscriber.phone, smsText);
+        console.log(`  📱 New game alert SMS sent to ${subscriber.phone} for ${subscriberId}`);
+      }
+    } catch (err) {
+      console.error(`❌ Error sending new game alert to ${subscriberId}:`, err.message);
+    }
   }
 }
 
@@ -5823,7 +5916,25 @@ app.post('/api/admin/cleanup-expired-games', async (req, res) => {
   res.json({ success: true, removedCount: removed, message: `Removed ${removed} expired games from monitored lists` });
 });
 
-// �🧪 DRY RUN: Diagnose notification flow WITHOUT sending anything
+// 🆕 Toggle "notify new games" for a subscriber
+app.post('/api/admin/toggle-new-game-alerts', (req, res) => {
+  const adminPass = req.body.password || req.headers['x-admin-password'];
+  if (adminPass !== process.env.ADMIN_PASSWORD && adminPass !== 'BeitarAdmin123!') {
+    return res.status(401).json({ error: 'Invalid admin password' });
+  }
+  
+  const { subscriberId, enabled } = req.body;
+  if (!subscriberId) return res.status(400).json({ error: 'subscriberId required' });
+  
+  const subscriber = data.subscribers?.[subscriberId];
+  if (!subscriber) return res.status(404).json({ error: 'Subscriber not found' });
+  
+  subscriber.notifyNewGames = enabled !== false;
+  saveData();
+  
+  res.json({ success: true, subscriberId, notifyNewGames: subscriber.notifyNewGames });
+});
+
 app.get('/api/admin/diagnose-notifications', async (req, res) => {
   const adminPass = req.query.p || req.query.password || req.headers['x-admin-password'];
   if (adminPass !== process.env.ADMIN_PASSWORD && adminPass !== 'BeitarAdmin123!') {
