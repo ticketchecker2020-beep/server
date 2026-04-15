@@ -368,15 +368,17 @@ setInterval(checkLicenseExpiry, 6 * 60 * 60 * 1000);
 
 // API Key authentication middleware
 function authenticateApiKey(req, res, next) {
-  // Skip auth for public endpoints and admin (admin has its own password check)
-  // Note: req.path here is relative to /api, so /api/test-email becomes /test-email
+  // req.path when mounted with app.use('/api', fn) may include or exclude the mount point
+  // Use req.originalUrl and strip '/api' to be safe
+  const fullPath = req.originalUrl.split('?')[0]; // remove query string
+  const apiPath = fullPath.startsWith('/api') ? fullPath.substring(4) : fullPath;
+  
   // Public paths - exact match or prefix with trailing slash to prevent partial matches
-  // e.g. '/subscriber/' won't match '/subscribers', '/admin' won't match '/admin/data'
   const publicExact = ['/health', '/pricing', '/register', '/games', '/activate-order', '/subscription-status'];
   const publicPrefix = ['/coupon/', '/license/', '/create-pending-order', '/webhook/', '/add-game', '/remove-game', '/subscriber/', '/games/'];
   // Admin endpoints have their own password check inside each handler
   const adminPrefix = '/admin';
-  if (publicExact.includes(req.path) || publicPrefix.some(p => req.path.startsWith(p)) || req.path.startsWith(adminPrefix)) {
+  if (publicExact.includes(apiPath) || publicPrefix.some(p => apiPath.startsWith(p)) || apiPath.startsWith(adminPrefix)) {
     return next();
   }
   
