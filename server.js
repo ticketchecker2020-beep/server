@@ -396,7 +396,7 @@ function authenticateApiKey(req, res, next) {
   }
   
   // Master key always works
-  if (apiKey === masterKey) {
+  if (masterKey && apiKey === masterKey) {
     req.userKey = 'master';
     return next();
   }
