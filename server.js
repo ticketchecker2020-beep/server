@@ -389,11 +389,7 @@ function authenticateApiKey(req, res, next) {
   
   const apiKey = req.headers['x-api-key'] || req.query.apiKey;
   const licenseKey = req.headers['x-license-key'] || req.query.licenseKey;
-  const masterKey = process.env.API_KEY || 'beitar2024';
-  
-  if (!process.env.API_KEY) {
-    console.warn('⚠️ API_KEY not set in environment - using default. Set it in Render env vars!');
-  }
+  const masterKey = process.env.API_KEY;
   
   // Master key always works
   if (masterKey && apiKey === masterKey) {
