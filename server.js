@@ -543,7 +543,13 @@ app.use('/api/admin', authLimiter);
 app.use('/api/test-email', emailLimiter);
 app.use('/api/test-sms', emailLimiter);
 app.use('/api', generalLimiter);
-app.use('/api', authenticateApiKey);
+// Auth middleware - mounted globally, checks only /api paths
+app.use((req, res, next) => {
+  if (req.originalUrl.startsWith('/api')) {
+    return authenticateApiKey(req, res, next);
+  }
+  next();
+});
 
 // Email transporter setup
 let emailTransporter = null;
