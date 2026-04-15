@@ -7,6 +7,8 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const nodemailer = require('nodemailer');
 const fs = require('fs');
 const path = require('path');
@@ -156,6 +158,16 @@ let data = {
   data = await loadData();
   log.info('system', `שרת הופעל - נטענו ${Object.keys(data.licenses).length} רישיונות, ${Object.keys(data.subscribers).length} מנויים`);
 })();
+
+// Centralized admin password check — NEVER hardcode passwords in endpoint handlers
+function isValidAdminPassword(password) {
+  const envPassword = process.env.ADMIN_PASSWORD;
+  if (!envPassword) {
+    console.error('❌ ADMIN_PASSWORD not set in environment!');
+    return false;
+  }
+  return password === envPassword;
+}
 
 // Pricing configuration
 // FREE = Email only (unlimited)
@@ -358,14 +370,18 @@ setInterval(checkLicenseExpiry, 6 * 60 * 60 * 1000);
 function authenticateApiKey(req, res, next) {
   // Skip auth for public endpoints and admin (admin has its own password check)
   // Note: req.path here is relative to /api, so /api/test-email becomes /test-email
-  const publicPaths = ['/health', '/pricing', '/register', '/coupon/validate', '/coupon/activate', '/license/validate', '/license/by-email', '/admin', '/create-pending-order', '/webhook', '/add-game', '/remove-game', '/games', '/test-email', '/test-sms', '/activate-order', '/notify', '/subscriber', '/subscription-status'];
+  const publicPaths = ['/health', '/pricing', '/register', '/coupon/validate', '/coupon/activate', '/license/validate', '/license/by-email', '/admin', '/create-pending-order', '/webhook', '/add-game', '/remove-game', '/games', '/activate-order', '/subscriber', '/subscription-status'];
   if (publicPaths.some(p => req.path === p || req.path.startsWith(p))) {
     return next();
   }
   
   const apiKey = req.headers['x-api-key'] || req.query.apiKey;
   const licenseKey = req.headers['x-license-key'] || req.query.licenseKey;
-  const masterKey = process.env.API_KEY || 'beitar2024';
+  const masterKey = process.env.API_KEY;
+  
+  if (!masterKey) {
+    console.warn('⚠️ API_KEY not set in environment!');
+  }
   
   // Master key always works
   if (apiKey === masterKey) {
@@ -485,10 +501,36 @@ async function notifyAdminOnFailure(type, entry) {
   }
 }
 
-// Middleware
-app.use(cors());
+// Security middleware
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      imgSrc: ["'self'", "https:", "data:"],
+      connectSrc: ["'self'", "https://server-tickets-l0rq.onrender.com"],
+    }
+  }
+}));
+app.use(cors({
+  origin: ['https://server-tickets-l0rq.onrender.com', /\.onrender\.com$/],
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  credentials: true
+}));
+
+// Rate limiters
+const generalLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100, message: { error: 'Too many requests' } });
+const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, message: { error: 'Too many auth attempts' } });
+const emailLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 5, message: { error: 'Email rate limit exceeded' } });
+
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+app.use('/api/admin', authLimiter);
+app.use('/api/test-email', emailLimiter);
+app.use('/api/test-sms', emailLimiter);
+app.use('/api', generalLimiter);
 app.use('/api', authenticateApiKey);
 
 // Email transporter setup
@@ -717,7 +759,7 @@ app.get('/api/health', (req, res) => {
 app.get('/api/sms/status', (req, res) => {
   const adminPassword = req.query.admin || req.headers['x-admin-password'];
   
-  if (adminPassword !== process.env.ADMIN_PASSWORD && adminPassword !== 'BeitarAdmin123!') {
+  if (!isValidAdminPassword(adminPassword)) {
     return res.status(401).json({ error: 'Admin password required. Use ?admin=PASSWORD' });
   }
   
@@ -929,7 +971,9 @@ app.post('/api/unsubscribe', async (req, res) => {
 
 // Unsubscribe via GET (for email links)
 app.get('/unsubscribe', async (req, res) => {
-  const { email } = req.query;
+  const rawEmail = req.query.email;
+  // Sanitize to prevent XSS — only allow email-like characters
+  const email = rawEmail ? rawEmail.replace(/[<>"'&;(){}\[\]]/g, '').substring(0, 100) : '';
   const subscriberId = email?.toLowerCase();
   
   if (!subscriberId) {
@@ -1858,7 +1902,7 @@ app.post('/api/test-email', async (req, res) => {
 app.post('/api/test-sms', async (req, res) => {
   // Check admin password
   const adminPassword = req.headers['x-admin-password'] || req.query.p;
-  if (adminPassword !== (process.env.ADMIN_PASSWORD || 'BeitarAdmin123!')) {
+  if (!isValidAdminPassword(adminPassword)) {
     return res.status(401).json({ error: 'Admin authentication required' });
   }
   
@@ -1927,7 +1971,7 @@ app.get('/', (req, res) => {
 // Admin API - Send custom email
 app.post('/api/admin/send-email', async (req, res) => {
   const adminPass = req.query.p || req.query.password || req.headers['x-admin-password'];
-  if (adminPass !== (process.env.ADMIN_PASSWORD || 'BeitarAdmin123!')) {
+  if (!isValidAdminPassword(adminPass)) {
     return res.status(401).json({ error: 'Invalid admin password' });
   }
   
@@ -1947,7 +1991,7 @@ app.post('/api/admin/send-email', async (req, res) => {
 // Admin API - Get all data for dashboard (used by new dashboard.html)
 app.get('/api/admin/data', async (req, res) => {
   const adminPass = req.query.p || req.query.password || req.headers['x-admin-password'];
-  if (adminPass !== (process.env.ADMIN_PASSWORD || 'BeitarAdmin123!')) {
+  if (!isValidAdminPassword(adminPass)) {
     return res.status(401).json({ error: 'Invalid admin password' });
   }
   
@@ -1979,7 +2023,7 @@ app.get('/api/admin/data', async (req, res) => {
 // Admin API - Get full stats
 app.get('/api/admin/stats', (req, res) => {
   const adminPass = req.headers['x-admin-password'];
-  if (adminPass !== (process.env.ADMIN_PASSWORD || 'BeitarAdmin123!')) {
+  if (!isValidAdminPassword(adminPass)) {
     return res.status(401).json({ error: 'Invalid admin password' });
   }
   
@@ -1996,7 +2040,7 @@ app.get('/api/admin/stats', (req, res) => {
 // Reset usage stats (admin only)
 app.post('/api/admin/reset-stats', (req, res) => {
   const adminPass = req.headers['x-admin-password'];
-  if (adminPass !== (process.env.ADMIN_PASSWORD || 'BeitarAdmin123!')) {
+  if (!isValidAdminPassword(adminPass)) {
     return res.status(401).json({ error: 'Invalid admin password' });
   }
   
@@ -2015,7 +2059,7 @@ app.post('/api/admin/reset-stats', (req, res) => {
 // Admin: Create license manually (for when payment didn't trigger webhook)
 app.post('/api/admin/create-license', async (req, res) => {
   const adminPass = req.headers['x-admin-password'] || req.body.adminPassword || req.query.p;
-  if (adminPass !== (process.env.ADMIN_PASSWORD || 'BeitarAdmin123!')) {
+  if (!isValidAdminPassword(adminPass)) {
     return res.status(401).json({ error: 'Invalid admin password' });
   }
   
@@ -2113,7 +2157,7 @@ app.post('/api/admin/create-license', async (req, res) => {
 // Admin: Enable SMS/VIP for subscriber
 app.post('/api/admin/enable-sms', async (req, res) => {
   const adminPass = req.headers['x-admin-password'] || req.body.adminPassword;
-  if (adminPass !== (process.env.ADMIN_PASSWORD || 'BeitarAdmin123!')) {
+  if (!isValidAdminPassword(adminPass)) {
     return res.status(401).json({ error: 'Invalid admin password' });
   }
   
@@ -2139,7 +2183,7 @@ app.post('/api/admin/enable-sms', async (req, res) => {
 // Admin: Simulate ticket available - sends notifications to all subscribers following a game
 app.post('/api/admin/simulate-ticket-available', async (req, res) => {
   const adminPass = req.headers['x-admin-password'] || req.body.adminPassword;
-  if (adminPass !== (process.env.ADMIN_PASSWORD || 'BeitarAdmin123!')) {
+  if (!isValidAdminPassword(adminPass)) {
     return res.status(401).json({ error: 'Invalid admin password' });
   }
   
@@ -2248,7 +2292,7 @@ app.post('/api/admin/simulate-ticket-available', async (req, res) => {
 // Admin: Delete subscriber
 app.post('/api/admin/delete-subscriber', async (req, res) => {
   const adminPass = req.headers['x-admin-password'] || req.body.adminPassword;
-  if (adminPass !== (process.env.ADMIN_PASSWORD || 'BeitarAdmin123!')) {
+  if (!isValidAdminPassword(adminPass)) {
     return res.status(401).json({ error: 'Invalid admin password' });
   }
   
@@ -2805,7 +2849,7 @@ app.get('/pricing', (req, res) => {
 app.get('/admin', async (req, res) => {
   const adminPassword = req.query.p || req.query.password;
   
-  if (adminPassword !== process.env.ADMIN_PASSWORD && adminPassword !== 'BeitarAdmin123!') {
+  if (!isValidAdminPassword(adminPassword)) {
     return res.send(`
 <!DOCTYPE html>
 <html dir="rtl" lang="he">
@@ -4108,7 +4152,7 @@ app.get('/api/coupon/validate', (req, res) => {
 // Get all coupons (admin only)
 app.get('/api/admin/coupons', (req, res) => {
   const adminPass = req.headers['x-admin-password'];
-  if (adminPass !== (process.env.ADMIN_PASSWORD || 'Beitar2024$ecure!')) {
+  if (!isValidAdminPassword(adminPass)) {
     return res.status(401).json({ error: 'Invalid admin password' });
   }
   
@@ -4118,7 +4162,7 @@ app.get('/api/admin/coupons', (req, res) => {
 // Toggle coupon status (admin only)
 app.post('/api/admin/coupon/toggle', (req, res) => {
   const adminPass = req.query.p || req.query.password || req.headers['x-admin-password'];
-  if (adminPass !== process.env.ADMIN_PASSWORD && adminPass !== 'BeitarAdmin123!') {
+  if (!isValidAdminPassword(adminPass)) {
     return res.status(401).json({ error: 'Invalid admin password' });
   }
   
@@ -4142,7 +4186,7 @@ app.post('/api/admin/coupon/toggle', (req, res) => {
 // Create coupon (admin only)
 app.post('/api/admin/coupon/create', (req, res) => {
   const adminPass = req.query.p || req.query.password || req.headers['x-admin-password'];
-  if (adminPass !== process.env.ADMIN_PASSWORD && adminPass !== 'BeitarAdmin123!') {
+  if (!isValidAdminPassword(adminPass)) {
     return res.status(401).json({ error: 'Invalid admin password' });
   }
   
@@ -4180,7 +4224,7 @@ app.post('/api/admin/coupon/create', (req, res) => {
 // Delete coupon (admin only)
 app.delete('/api/admin/coupon/:code', (req, res) => {
   const adminPass = req.query.p || req.query.password || req.headers['x-admin-password'];
-  if (adminPass !== process.env.ADMIN_PASSWORD && adminPass !== 'BeitarAdmin123!') {
+  if (!isValidAdminPassword(adminPass)) {
     return res.status(401).json({ error: 'Invalid admin password' });
   }
   
@@ -4204,7 +4248,7 @@ app.delete('/api/admin/coupon/:code', (req, res) => {
 // Update subscriber (admin only)
 app.put('/api/admin/subscriber/:id', async (req, res) => {
   const adminPass = req.query.p || req.query.password || req.headers['x-admin-password'];
-  if (adminPass !== process.env.ADMIN_PASSWORD && adminPass !== 'BeitarAdmin123!') {
+  if (!isValidAdminPassword(adminPass)) {
     return res.status(401).json({ error: 'Invalid admin password' });
   }
   
@@ -4247,7 +4291,7 @@ app.put('/api/admin/subscriber/:id', async (req, res) => {
 // Delete subscriber (admin only)
 app.post('/api/admin/subscriber/delete', async (req, res) => {
   const adminPass = req.query.p || req.query.password || req.headers['x-admin-password'];
-  if (adminPass !== process.env.ADMIN_PASSWORD && adminPass !== 'BeitarAdmin123!') {
+  if (!isValidAdminPassword(adminPass)) {
     return res.status(401).json({ error: 'Invalid admin password' });
   }
   
@@ -4272,7 +4316,7 @@ app.post('/api/admin/subscriber/delete', async (req, res) => {
 // Remove game from subscriber's monitored games (admin only)
 app.post('/api/admin/subscriber/remove-game', async (req, res) => {
   const adminPass = req.query.p || req.query.password || req.headers['x-admin-password'];
-  if (adminPass !== process.env.ADMIN_PASSWORD && adminPass !== 'BeitarAdmin123!') {
+  if (!isValidAdminPassword(adminPass)) {
     return res.status(401).json({ error: 'Invalid admin password' });
   }
   
@@ -4312,7 +4356,7 @@ app.post('/api/admin/subscriber/remove-game', async (req, res) => {
 // Create new license (admin only)
 app.post('/api/admin/licenses', (req, res) => {
   const adminPass = req.headers['x-admin-password'];
-  if (adminPass !== (process.env.ADMIN_PASSWORD || 'Beitar2024$ecure!')) {
+  if (!isValidAdminPassword(adminPass)) {
     return res.status(401).json({ error: 'Invalid admin password' });
   }
   
@@ -4418,7 +4462,7 @@ async function sendWelcomeEmail(license) {
 // Get server logs
 app.get('/api/admin/logs', (req, res) => {
   const adminPass = req.query.password || req.headers['x-admin-password'];
-  if (adminPass !== (process.env.ADMIN_PASSWORD || 'Beitar2024$ecure!')) {
+  if (!isValidAdminPassword(adminPass)) {
     return res.status(401).json({ error: 'Invalid admin password' });
   }
   
@@ -4458,7 +4502,7 @@ app.get('/api/admin/logs', (req, res) => {
 // Clear logs (admin only)
 app.delete('/api/admin/logs', (req, res) => {
   const adminPass = req.query.password || req.headers['x-admin-password'];
-  if (adminPass !== (process.env.ADMIN_PASSWORD || 'Beitar2024$ecure!')) {
+  if (!isValidAdminPassword(adminPass)) {
     return res.status(401).json({ error: 'Invalid admin password' });
   }
   
@@ -4471,7 +4515,7 @@ app.delete('/api/admin/logs', (req, res) => {
 // Get all licenses (admin only)
 app.get('/api/admin/licenses', (req, res) => {
   const adminPass = req.headers['x-admin-password'];
-  if (adminPass !== (process.env.ADMIN_PASSWORD || 'Beitar2024$ecure!')) {
+  if (!isValidAdminPassword(adminPass)) {
     return res.status(401).json({ error: 'Invalid admin password' });
   }
   
@@ -4487,7 +4531,7 @@ app.get('/api/admin/licenses', (req, res) => {
 // Update license (admin only)
 app.put('/api/admin/licenses/:key', (req, res) => {
   const adminPass = req.headers['x-admin-password'];
-  if (adminPass !== (process.env.ADMIN_PASSWORD || 'Beitar2024$ecure!')) {
+  if (!isValidAdminPassword(adminPass)) {
     return res.status(401).json({ error: 'Invalid admin password' });
   }
   
@@ -4528,7 +4572,7 @@ app.put('/api/admin/licenses/:key', (req, res) => {
 // Fix old licenses - add missing key and userName (admin only)
 app.post('/api/admin/fix-licenses', async (req, res) => {
   const adminPass = req.headers['x-admin-password'];
-  if (adminPass !== (process.env.ADMIN_PASSWORD || 'BeitarAdmin123!')) {
+  if (!isValidAdminPassword(adminPass)) {
     return res.status(401).json({ error: 'Invalid admin password' });
   }
   
@@ -4570,7 +4614,7 @@ app.post('/api/admin/fix-licenses', async (req, res) => {
 // Delete license (admin only)
 app.delete('/api/admin/licenses/:key', (req, res) => {
   const adminPass = req.headers['x-admin-password'];
-  if (adminPass !== (process.env.ADMIN_PASSWORD || 'Beitar2024$ecure!')) {
+  if (!isValidAdminPassword(adminPass)) {
     return res.status(401).json({ error: 'Invalid admin password' });
   }
   
@@ -4640,7 +4684,7 @@ app.get('/api/license/validate', (req, res) => {
 // Send reminder email manually (admin only)
 app.post('/api/admin/licenses/:key/remind', async (req, res) => {
   const adminPass = req.headers['x-admin-password'];
-  if (adminPass !== (process.env.ADMIN_PASSWORD || 'Beitar2024$ecure!')) {
+  if (!isValidAdminPassword(adminPass)) {
     return res.status(401).json({ error: 'Invalid admin password' });
   }
   
@@ -4670,7 +4714,7 @@ app.post('/api/admin/licenses/:key/remind', async (req, res) => {
 // Resend welcome email (admin only)
 app.post('/api/admin/licenses/:key/welcome', async (req, res) => {
   const adminPass = req.headers['x-admin-password'];
-  if (adminPass !== (process.env.ADMIN_PASSWORD || 'Beitar2024$ecure!')) {
+  if (!isValidAdminPassword(adminPass)) {
     return res.status(401).json({ error: 'Invalid admin password' });
   }
   
@@ -5893,7 +5937,7 @@ app.post('/api/admin/test-sms', async (req, res) => {
 // Reset lastKnownGames (to trigger fresh notifications)
 app.post('/api/admin/reset-known-games', async (req, res) => {
   const adminPass = req.query.p || req.query.password || req.headers['x-admin-password'];
-  if (adminPass !== process.env.ADMIN_PASSWORD && adminPass !== 'BeitarAdmin123!') {
+  if (!isValidAdminPassword(adminPass)) {
     return res.status(401).json({ error: 'Invalid admin password' });
   }
   
@@ -5908,7 +5952,7 @@ app.post('/api/admin/reset-known-games', async (req, res) => {
 // � Admin: Cleanup expired games from all subscribers' monitored lists
 app.post('/api/admin/cleanup-expired-games', async (req, res) => {
   const adminPass = req.query.p || req.query.password || req.headers['x-admin-password'];
-  if (adminPass !== process.env.ADMIN_PASSWORD && adminPass !== 'BeitarAdmin123!') {
+  if (!isValidAdminPassword(adminPass)) {
     return res.status(401).json({ error: 'Invalid admin password' });
   }
   
@@ -5919,7 +5963,7 @@ app.post('/api/admin/cleanup-expired-games', async (req, res) => {
 // 🆕 Toggle "notify new games" for a subscriber
 app.post('/api/admin/toggle-new-game-alerts', (req, res) => {
   const adminPass = req.body.password || req.headers['x-admin-password'];
-  if (adminPass !== process.env.ADMIN_PASSWORD && adminPass !== 'BeitarAdmin123!') {
+  if (!isValidAdminPassword(adminPass)) {
     return res.status(401).json({ error: 'Invalid admin password' });
   }
   
@@ -5937,7 +5981,7 @@ app.post('/api/admin/toggle-new-game-alerts', (req, res) => {
 
 app.get('/api/admin/diagnose-notifications', async (req, res) => {
   const adminPass = req.query.p || req.query.password || req.headers['x-admin-password'];
-  if (adminPass !== process.env.ADMIN_PASSWORD && adminPass !== 'BeitarAdmin123!') {
+  if (!isValidAdminPassword(adminPass)) {
     return res.status(401).json({ error: 'Invalid admin password' });
   }
   
