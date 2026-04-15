@@ -373,6 +373,11 @@ function authenticateApiKey(req, res, next) {
   const fullPath = req.originalUrl.split('?')[0]; // remove query string
   const apiPath = fullPath.startsWith('/api') ? fullPath.substring(4) : fullPath;
   
+  // DEBUG: log path matching (remove after verification)
+  if (apiPath === '/subscribers' || apiPath === '/usage') {
+    console.log(`🔒 AUTH CHECK: originalUrl=${req.originalUrl} fullPath=${fullPath} apiPath=${apiPath} → should REQUIRE key`);
+  }
+  
   // Public paths - exact match or prefix with trailing slash to prevent partial matches
   const publicExact = ['/health', '/pricing', '/register', '/games', '/activate-order', '/subscription-status'];
   const publicPrefix = ['/coupon/', '/license/', '/create-pending-order', '/webhook/', '/add-game', '/remove-game', '/subscriber/', '/games/'];
