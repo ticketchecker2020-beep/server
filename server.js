@@ -5246,6 +5246,32 @@ async function checkTicketsAndNotify() {
     log.info('tickets', `נמצאו ${allGames.length} משחקים, ${availableGames.length} עם כרטיסים זמינים`, 
       { total: allGames.length, available: availableGames.length });
     
+    // === "New game detected" alerts — runs on ALL games (including free/lottery) ===
+    const lastKnownAll = data.lastKnownAllGames || [];
+    const lastKnownAllEntries = lastKnownAll.map(entry => {
+      if (typeof entry === 'string') return { id: entry, name: '' };
+      return { id: entry.id || '', name: entry.name || '' };
+    });
+    const newGamesAll = allGames.filter(g => {
+      return !lastKnownAllEntries.some(known => {
+        if (known.id && g.id && String(known.id) === String(g.id)) return true;
+        if (known.name && g.name) {
+          const knownName = known.name.toLowerCase().replace(/[^א-תa-z0-9]/g, '');
+          const gameName = g.name.toLowerCase().replace(/[^א-תa-z0-9]/g, '');
+          if (knownName.length >= 4 && gameName.length >= 4) {
+            if (knownName.includes(gameName) || gameName.includes(knownName)) return true;
+          }
+        }
+        return false;
+      });
+    });
+    if (newGamesAll.length > 0) {
+      console.log(`🆕 New game(s) detected (all): ${newGamesAll.map(g => g.name).join(', ')}`);
+      await notifyNewGameDetected(newGamesAll);
+    }
+    // Always update the "all games" tracking list
+    data.lastKnownAllGames = allGames.map(g => ({ id: g.id, name: g.name }));
+    
     if (availableGames.length > 0) {
       // Update hasTickets for ALL subscribers' monitored games
       await updateHasTicketsStatus(availableGames);
@@ -5335,13 +5361,6 @@ async function checkTicketsAndNotify() {
         await notifyAllSubscribers(gamesToProcess);
       } else {
         log.info('tickets', 'אין משחקים חדשים (כבר נשלחו התראות)');
-      }
-      
-      // === SEPARATE: Notify "new game detected" subscribers ===
-      // This is INDEPENDENT from the per-game monitoring above.
-      // Sends a heads-up when ANY new game appears on Leaan, so they can go mark it.
-      if (newGames.length > 0) {
-        await notifyNewGameDetected(newGames);
       }
       
       // Update known games - save as objects with ID, name, and restriction for robust matching
