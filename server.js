@@ -30,6 +30,7 @@ if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) 
 }
 
 const app = express();
+app.set('trust proxy', 1); // Render runs behind a reverse proxy
 const PORT = process.env.PORT || 3000;
 
 // Server version - UPDATE THIS ON EACH DEPLOY!
@@ -6198,7 +6199,7 @@ app.listen(PORT, () => {
 ║  Server running on http://localhost:${PORT}                 ║
 ║  Dashboard: http://localhost:${PORT}/                       ║
 ║                                                         ║
-║  🔄 MONITORING ACTIVE - Checking every 5 minutes!       ║
+║  🔄 MONITORING ACTIVE - Checking every 2.5 minutes!     ║
 ║                                                         ║
 ║  API Endpoints:                                         ║
 ║  • POST /api/subscribe        - Subscribe to alerts     ║
