@@ -4764,7 +4764,7 @@ setup019SMS();
 const LEAAN_URL = 'https://www.leaan.co.il/category/%D7%A1%D7%A4%D7%95%D7%A8%D7%98/%D7%9B%D7%93%D7%95%D7%A8%D7%92%D7%9C/%D7%91%D7%99%D7%AA%D7%A8-%D7%99%D7%A8%D7%95%D7%A9%D7%9C%D7%99%D7%9D';
 // Official Beitar FC website - better source for games list
 const BEITAR_OFFICIAL_URL = 'https://www.beitarfc.co.il/%D7%9E%D7%A9%D7%97%D7%A7%D7%99%D7%9D/';
-const CHECK_INTERVAL = 2.5 * 60 * 1000; // Check every 2.5 minutes
+const CHECK_INTERVAL = 5 * 60 * 1000; // Check every 5 minutes
 
 // Parse games from official Beitar FC website (beitarfc.co.il)
 function parseGamesFromBeitarOfficial(html) {
@@ -6199,7 +6199,7 @@ app.listen(PORT, () => {
 ║  Server running on http://localhost:${PORT}                 ║
 ║  Dashboard: http://localhost:${PORT}/                       ║
 ║                                                         ║
-║  🔄 MONITORING ACTIVE - Checking every 2.5 minutes!     ║
+║  🔄 MONITORING ACTIVE - Checking every 5 minutes!       ║
 ║                                                         ║
 ║  API Endpoints:                                         ║
 ║  • POST /api/subscribe        - Subscribe to alerts     ║
