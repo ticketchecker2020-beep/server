@@ -305,6 +305,7 @@
             <tr>
               <th>אימייל</th>
               <th>טלפון</th>
+              <th>סטטוס</th>
               <th>SMS</th>
               <th>VIP</th>
               <th>נרשם</th>
@@ -742,7 +743,7 @@
       const entries = Object.entries(subscribers);
       
       if (entries.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #888;">אין מנויים עדיין</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #888;">אין מנויים עדיין</td></tr>';
         return;
       }
       
@@ -750,23 +751,43 @@
         const regDate = sub.registeredAt ? new Date(sub.registeredAt).toLocaleDateString('he-IL') : '-';
         const smsStatus = sub.smsEnabled ? '✅' : '❌';
         const vipStatus = sub.vip ? '👑' : '-';
+        const isActive = sub.active !== false;
+        const statusClass = isActive ? 'badge-success' : 'badge-error';
+        const statusText = isActive ? 'פעיל' : 'מושבת';
         
         return `
-          <tr>
+          <tr class="history-row ${isActive ? '' : 'expired'}" onclick="toggleSubscriberActive('${escapeHtml(key)}', ${!isActive})">
             <td style="direction: ltr; text-align: right; max-width: 200px; overflow: hidden; text-overflow: ellipsis;">${key}</td>
             <td style="direction: ltr; text-align: right;">${sub.phone || '-'}</td>
+            <td><span class="badge ${statusClass}">${statusText}</span></td>
             <td>${smsStatus}</td>
             <td>${vipStatus}</td>
             <td>${regDate}</td>
             <td>
-              <button class="btn btn-sm btn-info" onclick="editSubscriber('${escapeHtml(key)}', '${escapeHtml(sub.phone || '')}', ${sub.smsEnabled || false})" title="עריכה">✏️</button>
-              <button class="btn btn-sm btn-success" onclick="enableVip('${escapeHtml(key)}')" title="הפעל VIP">👑</button>
-              <button class="btn btn-sm btn-${sub.smsEnabled ? 'warning' : 'primary'}" onclick="toggleSms('${escapeHtml(key)}', ${!sub.smsEnabled})" title="${sub.smsEnabled ? 'כבה SMS' : 'הפעל SMS'}">${sub.smsEnabled ? '📴' : '📱'}</button>
-              <button class="btn btn-sm btn-danger" onclick="deleteSubscriber('${escapeHtml(key)}')" title="מחק">🗑️</button>
+              <button class="btn btn-sm btn-info" onclick="event.stopPropagation(); editSubscriber('${escapeHtml(key)}', '${escapeHtml(sub.phone || '')}', ${sub.smsEnabled || false})" title="עריכה">✏️</button>
+              <button class="btn btn-sm btn-success" onclick="event.stopPropagation(); enableVip('${escapeHtml(key)}')" title="הפעל VIP">👑</button>
+              <button class="btn btn-sm btn-${sub.smsEnabled ? 'warning' : 'primary'}" onclick="event.stopPropagation(); toggleSms('${escapeHtml(key)}', ${!sub.smsEnabled})" title="${sub.smsEnabled ? 'כבה SMS' : 'הפעל SMS'}">${sub.smsEnabled ? '📴' : '📱'}</button>
+              <button class="btn btn-sm btn-danger" onclick="event.stopPropagation(); deleteSubscriber('${escapeHtml(key)}')" title="מחק">🗑️</button>
             </td>
           </tr>
         `;
       }).join('');
+    }
+
+    // Toggle subscriber active status
+    async function toggleSubscriberActive(subscriberId, active) {
+      try {
+        const res = await apiCall(\`/api/admin/subscriber/\${encodeURIComponent(subscriberId)}\`, 'PUT', { active });
+        if (res.success) {
+          // Toast or simple alert
+          console.log(active ? '✅ מנוי הופעל!' : '✅ מנוי הושבת!');
+          loadData();
+        } else {
+          alert('❌ ' + (res.error || 'נכשל'));
+        }
+      } catch (e) {
+        alert('❌ שגיאה: ' + e.message);
+      }
     }
     
     // Render licenses table
