@@ -777,7 +777,7 @@
     // Toggle subscriber active status
     async function toggleSubscriberActive(subscriberId, active) {
       try {
-        const res = await apiCall(\`/api/admin/subscriber/\${encodeURIComponent(subscriberId)}\`, 'PUT', { active });
+        const res = await apiCall(`/api/admin/subscriber/${encodeURIComponent(subscriberId)}`, 'PUT', { active });
         if (res.success) {
           // Toast or simple alert
           console.log(active ? '✅ מנוי הופעל!' : '✅ מנוי הושבת!');
