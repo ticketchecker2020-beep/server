@@ -531,9 +531,9 @@ app.use(cors({
 }));
 
 // Rate limiters
-const generalLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100, message: { error: 'Too many requests' } });
-const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, message: { error: 'Too many auth attempts' } });
-const emailLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 5, message: { error: 'Email rate limit exceeded' } });
+const generalLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 200, message: { error: 'Too many requests' } });
+const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100, message: { error: 'Too many auth attempts' } });
+const emailLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 50, message: { error: 'Email rate limit exceeded' } });
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
